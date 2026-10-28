@@ -17,6 +17,20 @@ const POINT_DETAILS={
 };
 const CSS={panel:{border:`1px solid ${COLORS.edge}`,borderRadius:18,padding:15,background:'white',marginBottom:12},button:{border:`1px solid ${COLORS.edge}`,borderRadius:12,padding:'10px 13px',background:COLORS.pale,color:'#755990',fontWeight:700,fontFamily:'inherit',cursor:'pointer'},small:{fontSize:12,color:COLORS.sub}};
 const timeText=s=>`${String(Math.floor(Math.max(0,s)/60)).padStart(2,'0')}:${String(Math.max(0,s)%60).padStart(2,'0')}`;
+
+// Supabase object keys must be ASCII-safe, independent of Korean UI labels.
+const LYMPH_REGION_KEYS={
+ '얼굴':'face','데콜테':'decollete','두피':'scalp','등':'back',
+ '골반':'pelvis','복부':'abdomen','엉덩이':'glutes','다리':'legs'
+};
+const LYMPH_KEY_REGIONS=Object.fromEntries(Object.entries(LYMPH_REGION_KEYS).map(([label,key])=>[key,label]));
+const lymphRegionFromFileName=(name)=>{
+ const stem=name.replace(/\.jpg$/i,'');
+ if(LYMPH_KEY_REGIONS[stem])return LYMPH_KEY_REGIONS[stem];
+ // Backward compatibility for any previously saved Korean-name objects.
+ try {const decoded=decodeURIComponent(stem);return LYMPH_REGION_KEYS[decoded]?decoded:null;} catch {return null;}
+};
+
 function announce(t){try{if(!('speechSynthesis'in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ko-KR';u.rate=.88;u.volume=.8;window.speechSynthesis.speak(u)}catch{}}
 export default function MassageLibrary(){
  const [region,setRegion]=useState(null),[tab,setTab]=useState('sequence'),[muscleSearch,setMuscleSearch]=useState(''),[index,setIndex]=useState(0),[remaining,setRemaining]=useState(0),[running,setRunning]=useState(false),[finished,setFinished]=useState(false);
@@ -41,7 +55,7 @@ export default function MassageLibrary(){
    setLymphBusy(true);setLymphError('');try{
      if(f.size>15*1024*1024)throw new Error('15MB 이하 그림만 등록할 수 있어요.');
      const blob=await new Promise((resolve,reject)=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);const c=document.createElement('canvas'),k=Math.min(1,1600/Math.max(im.width,im.height));c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(b=>b?resolve(b):reject(new Error('사진 변환 실패')),'image/jpeg',.86)};im.onerror=()=>{URL.revokeObjectURL(u);reject(new Error('사진 열기 실패'))};im.src=u});
-     const path=`${triggerUser}/massage-lymph/${encodeURIComponent(region)}.jpg`;
+     const path=`${triggerUser}/massage-lymph/${LYMPH_REGION_KEYS[region]}.jpg`;
      const {error:up}=await yogaSupabase.storage.from(YOGA_BUCKET).upload(path,blob,{upsert:true,contentType:'image/jpeg',cacheControl:'0'});if(up)throw up;
      const {data,error:er}=await yogaSupabase.storage.from(YOGA_BUCKET).createSignedUrl(path,3600);if(er)throw er;
      setLymphPhotos(x=>({...x,[region]:data.signedUrl+'#'+Date.now()}));
@@ -78,7 +92,15 @@ export default function MassageLibrary(){
      const results=await Promise.all(valid.map(async f=>{const path=`${prefix}/${f.name}`;const {data,error:signError}=await yogaSupabase.storage.from(YOGA_BUCKET).createSignedUrl(path,3600);return signError?null:[f.name.replace(/\.jpg$/,''),data.signedUrl];}));
      if(active)setTriggerPhotos(Object.fromEntries(results.filter(Boolean)));
      const {data:lf,error:le}=await yogaSupabase.storage.from(YOGA_BUCKET).list(`${user.id}/massage-lymph`,{limit:100});
-     if(!le&&active){const loaded=await Promise.all((lf||[]).filter(f=>f.name.endsWith('.jpg')).map(async f=>{const {data,error}=await yogaSupabase.storage.from(YOGA_BUCKET).createSignedUrl(`${user.id}/massage-lymph/${f.name}`,3600);return error?null:[decodeURIComponent(f.name.slice(0,-4)),data.signedUrl]}));if(active)setLymphPhotos(Object.fromEntries(loaded.filter(Boolean)))}
+     if(!le&&active){
+       const loaded=await Promise.all((lf||[]).filter(f=>/\.jpg$/i.test(f.name)).map(async f=>{
+         const label=lymphRegionFromFileName(f.name);
+         if(!label)return null;
+         const {data,error}=await yogaSupabase.storage.from(YOGA_BUCKET).createSignedUrl(`${user.id}/massage-lymph/${f.name}`,3600);
+         return error?null:{label,url:data.signedUrl,priority:LYMPH_KEY_REGIONS[f.name.replace(/\.jpg$/i,'')]?2:1};
+       }));
+       if(active){const selected={};for(const item of loaded.filter(Boolean)){if(!selected[item.label]||item.priority>selected[item.label].priority)selected[item.label]=item;}setLymphPhotos(Object.fromEntries(Object.values(selected).map(item=>[item.label,item.url])))}
+     }
 
      const pointPrefix=`${user.id}/massage-acupoints`;
      const {data:pointFiles,error:pointListError}=await yogaSupabase.storage.from(YOGA_BUCKET).list(pointPrefix,{limit:1000});
