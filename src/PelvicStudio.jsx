@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {loadStudio,saveStudio,uploadStudioPhoto} from './studioCloud';
 
 /* Drop-in Mind Flow tab. Data is browser-local until connected to the app's Supabase layer.
    For the EXISTING nature-sound mixer, pass NatureSounds as a prop:
@@ -7,10 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 const STRUCTURE = {
   '앞뒤찢기':[], '좌우찢기':[], '좌우모으기':[], '골반저근':[], '척추유연':[], '이완':[]
 };
-const KEY = 'mindflow.pelvic-circulation.v1';
-const getInitial = () => {
-  try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
-};
+const getInitial = () => ({});
 const uid = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
 const clamp = n => Math.max(1, Math.min(3600, Number(n) || 60));
 const secs = n => `${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;
@@ -20,6 +18,10 @@ const card = {background:'#fff',border:'1px solid #e1d4ec',borderRadius:20,paddi
 
 export default function PelvicStudio({ NatureSounds = null }) {
   const [data,setData] = useState(getInitial);
+  const [cloudReady,setCloudReady]=useState(false);
+  const [cloudError,setCloudError]=useState('');
+  const saveQueue=useRef(Promise.resolve());
+  useEffect(()=>{let alive=true;loadStudio('pelvic').then(record=>{if(alive){setData(record);setCloudReady(true)}}).catch(e=>{if(alive)setCloudError('Supabase 불러오기 실패: '+e.message)});return()=>{alive=false}},[]);
   const exercises = data.exercises || [];
   const saved = data.saved || [];
   const folders = data.folders || {};
@@ -48,7 +50,7 @@ export default function PelvicStudio({ NatureSounds = null }) {
   const draftRef = useRef([]);
   const pausedRef = useRef(false);
   const playRef = useRef(false);
-  useEffect(()=>{try {localStorage.setItem(KEY,JSON.stringify(data));} catch(e){console.warn('Pelvic storage full',e);}},[data]);
+  useEffect(()=>{if(!cloudReady)return;saveQueue.current=saveQueue.current.catch(()=>{}).then(()=>saveStudio('pelvic',data)).catch(e=>{setCloudError('Supabase 저장 실패: '+e.message)});},[data,cloudReady]);
   useEffect(()=>{draftRef.current=draft;},[draft]);
   useEffect(()=>{indexRef.current=playIndex;playRef.current=playIndex>=0;},[playIndex]);
   useEffect(()=>{pausedRef.current=paused;},[paused]);
@@ -89,7 +91,7 @@ export default function PelvicStudio({ NatureSounds = null }) {
   },[playIndex,voice]);
   const start=()=>{if(!draft.length)return;go(0,draft);};
   const addToSequence=x=>{
-    setDraft(d=>[...d,{id:uid(),exerciseId:x.id,name:x.name,image:x.image||'',seconds:clamp(x.seconds)}]);
+    setDraft(d=>[...d,{id:uid(),exerciseId:x.id,name:x.name,image:x.image||'',imagePath:x.imagePath||'',seconds:clamp(x.seconds)}]);
     setTab('sequence');
   };
   const clearEdit=()=>{setEditing(null);setForm({name:'',description:'',seconds:60,tags:'',image:''});};
@@ -100,15 +102,21 @@ export default function PelvicStudio({ NatureSounds = null }) {
   };
   const editExercise=x=>{setMajor(x.major);setEditing(x.id);setForm({...x,tags:x.tags.join(', ')});};
   const changePhoto=async(e)=>{
-    const file=e.target.files?.[0]; if(!file)return;
-    const url=URL.createObjectURL(file);
-    const img=new Image();img.onload=()=>{
-      const c=document.createElement('canvas'); const scale=Math.min(1,640/Math.max(img.width,img.height));
-      c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);
-      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-      setForm(f=>({...f,image:c.toDataURL('image/jpeg',0.68)}));URL.revokeObjectURL(url);
-    };img.src=url;
+    const file=e.target.files?.[0];if(!file)return;
+    try {const photo=await uploadStudioPhoto('pelvic',file);setForm(f=>({...f,...photo}));}
+    catch(err){alert('사진 등록 실패: '+err.message)}
+    finally{e.target.value=''}
   };
+  const changeCardPhoto=async(e,exercise)=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      const photo=await uploadStudioPhoto('pelvic',file);
+      update(prev=>({exercises:(prev.exercises||[]).map(item=>item.id===exercise.id?{...item,...photo}:item)}));
+      setDraft(prev=>prev.map(item=>item.exerciseId===exercise.id?{...item,...photo}:item));
+    }catch(err){alert('사진 등록 실패: '+err.message)}
+    finally{e.target.value=''}
+  };
+
   const bookmark=x=>{
     const path=x.major;
     update({favorites:{...favorites,[x.id]:favorites[x.id]?undefined:path}});
@@ -147,8 +155,11 @@ export default function PelvicStudio({ NatureSounds = null }) {
   const tags=[...new Set(tagged.flatMap(x=>x.tags||[]))];
   const filtered=tagged.filter(x=>(activeTag==='전체'||x.tags?.includes(activeTag))&&`${x.name} ${x.description} ${(x.tags||[]).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
   const current=playIndex>=0?draft[playIndex]:null;
+  if(cloudError&&!cloudReady)return <div role="alert" style={{padding:24,color:'#ad3865'}}>{cloudError}</div>;
+  if(!cloudReady)return <div style={{padding:24}}>Supabase에서 운동 데이터를 불러오는 중…</div>;
   return <div style={{fontFamily:'-apple-system,BlinkMacSystemFont,"Noto Sans KR",sans-serif',color:'#52405f',background:'#fbf8fd',padding:'16px 12px 90px',maxWidth:740,margin:'auto',minHeight:480}}>
     <style>{`@keyframes pelvicFade {from{opacity:0}to{opacity:1}} .pelvic-card button:active{transform:scale(.96)} .pelvic-input:focus{outline:2px solid #c3a4df}`}</style>
+    {cloudError&&<div role="alert" style={{padding:12,color:'#ad3865'}}>{cloudError}</div>}
     <h2 style={{margin:'4px 0 17px',fontSize:23}}>골반순환</h2>
     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:18}}>{[['sequence','시퀀스'],['library','운동 라이브러리'],['bookmarks','북마크']].map(([key,name])=><button key={key} onClick={()=>setTab(key)} style={{...btn,background:tab===key?'#e7dcf1':'#fff',minHeight:62,fontWeight:600}}>{name}</button>)}</div>
     {tab==='library' && <>
@@ -157,7 +168,10 @@ export default function PelvicStudio({ NatureSounds = null }) {
       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>{['전체',...tags].map(t=><button key={t} style={{...btn,padding:'5px 9px',borderRadius:40,background:activeTag===t?'#e4d3f1':'#fff'}} onClick={()=>setActiveTag(t)}>{t==='전체'?t:`#${t}`}</button>)}</div>
       <button style={{...btn,marginBottom:12}} onClick={()=>editing?clearEdit():setEditing('new')}>＋ 새 동작 등록</button>
       {editing && <div style={{...card,marginBottom:14,display:'grid',gap:10}}><strong>{editing==='new'?`${major} 동작 등록`:'운동 수정'}</strong><input className="pelvic-input" style={field} placeholder="동작명" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><textarea className="pelvic-input" style={{...field,minHeight:76}} placeholder="설명 / 주의사항 (선택)" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><label>기본 시간 (초)<input className="pelvic-input" style={field} type="number" min="1" max="3600" value={form.seconds} onChange={e=>setForm({...form,seconds:e.target.value})}/></label><input className="pelvic-input" style={field} placeholder="태그: 초급, 힙업, 누워서" value={form.tags} onChange={e=>setForm({...form,tags:e.target.value})}/><label style={{...btn,textAlign:'center',display:'block'}}>＋ 사진 업로드<input type="file" accept="image/*" hidden onChange={changePhoto}/></label>{form.image&&<img alt="업로드 미리보기" src={form.image} style={{width:140,height:110,objectFit:'cover',borderRadius:10}}/>}<div><button style={btn} onClick={saveExercise}>저장</button> <button style={btn} onClick={clearEdit}>취소</button></div></div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>{filtered.map(x=><div key={x.id} style={card} className="pelvic-card"><div style={{aspectRatio:'4/3',background:'#f8f3fb',borderRadius:14,overflow:'hidden',display:'grid',placeItems:'center'}}>{x.image?<img src={x.image} alt={x.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{color:'#b5a3c2'}}>＋ 사진</span>}</div><strong style={{display:'block',margin:'10px 0 4px'}}>{x.name}</strong><small>{x.seconds}초 · {(x.tags||[]).map(t=>`#${t}`).join(' ')}</small><div style={{display:'flex',gap:4,marginTop:10,flexWrap:'wrap'}}><button title="시퀀스에 추가" style={btn} onClick={()=>addToSequence(x)}>＋</button><button title="수정" style={btn} onClick={()=>editExercise(x)}>✎</button><button title="삭제" style={btn} onClick={()=>{if(confirm('운동을 삭제할까?'))update({exercises:exercises.filter(y=>y.id!==x.id)})}}>×</button></div></div>)}</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>{filtered.map(x=><div key={x.id} style={card} className="pelvic-card"><label title={`${x.name} 사진 추가 또는 변경`} style={{aspectRatio:'4/3',background:'#f8f3fb',borderRadius:14,overflow:'hidden',display:'grid',placeItems:'center',cursor:'pointer',position:'relative'}}>
+        {x.image?<img src={x.image} alt={x.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{color:'#b5a3c2'}}>＋ 사진</span>}
+        <input type="file" accept="image/*" style={{position:'absolute',width:1,height:1,opacity:0}} onChange={e=>changeCardPhoto(e,x)}/>
+      </label><strong style={{display:'block',margin:'10px 0 4px'}}>{x.name}</strong><small>{x.seconds}초 · {(x.tags||[]).map(t=>`#${t}`).join(' ')}</small><div style={{display:'flex',gap:4,marginTop:10,flexWrap:'wrap'}}><button title="시퀀스에 추가" style={btn} onClick={()=>addToSequence(x)}>＋</button><button title="수정" style={btn} onClick={()=>editExercise(x)}>✎</button><button title="삭제" style={btn} onClick={()=>{if(confirm('운동을 삭제할까?'))update({exercises:exercises.filter(y=>y.id!==x.id)})}}>×</button></div></div>)}</div>
       {!filtered.length&&<p style={{color:'#9987a5',textAlign:'center',padding:25}}>등록된 운동이 없어. + 새 동작 등록을 눌러줘.</p>}
     </>}
     {tab==='sequence'&&<div style={card}><h3>나의 골반순환 시퀀스</h3><input className="pelvic-input" style={field} value={sequenceName} onChange={e=>setSequenceName(e.target.value)} placeholder="시퀀스 이름 직접 입력"/><p style={{fontSize:12,color:'#927ca0'}}>운동 라이브러리에서 ＋ 버튼을 누르면 자동으로 추가돼.</p>{draft.map((x,i)=><div key={x.id} style={{display:'flex',alignItems:'center',gap:7,borderBottom:'1px solid #e8ddf1',padding:'12px 0'}}><small>{i+1}</small><div style={{height:50,width:50,borderRadius:9,background:'#f6f1fa',flexShrink:0,overflow:'hidden'}}>{x.image&&<img alt="" src={x.image} style={{width:'100%',height:'100%',objectFit:'cover'}}/>}</div><div style={{flex:1,minWidth:0}}><strong style={{fontSize:13,display:'block'}}>{x.name}</strong><input aria-label="운동 시간 (초)" type="number" min="1" max="3600" value={x.seconds} onChange={e=>setDraft(d=>d.map(y=>y.id===x.id?{...y,seconds:e.target.value}:y))} style={{...field,width:77,padding:6,marginTop:3}}/> 초</div><button style={btn} onClick={()=>moveSequence(i,-1)}>↑</button><button style={btn} onClick={()=>moveSequence(i,1)}>↓</button><button style={btn} onClick={()=>setDraft(d=>d.filter(y=>y.id!==x.id))}>×</button></div>)}<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:15}}><button style={btn} onClick={start}>▶ 시작</button><button style={btn} onClick={stop}>Ⅱ 정지</button><button style={btn} onClick={saveSequence}>▣ 시퀀스 저장</button><button style={btn} onClick={()=>{stop();setDraft([]);setLoadedId(null);setSequenceName('');}}>＋ 새 시퀀스</button></div><h3 style={{marginTop:25}}>저장된 시퀀스</h3>{saved.map(s=><div key={s.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderTop:'1px solid #e9dcf0'}}><div style={{flex:1}}><strong>{s.name}</strong><small style={{display:'block'}}>{s.items.length}개 동작</small></div><button style={btn} onClick={()=>{stop();setLoadedId(s.id);setSequenceName(s.name);setDraft(s.items.map(x=>({...x})));}}>불러오기</button><button style={btn} onClick={()=>{if(confirm('저장된 시퀀스를 삭제할까?'))update({saved:saved.filter(x=>x.id!==s.id)})}}>삭제</button></div>)}</div>}
