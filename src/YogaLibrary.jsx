@@ -1,6 +1,7 @@
 import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {Search,Plus,ChevronUp,ChevronDown,Trash2,X,BookOpen,Save,Image as ImageIcon,Upload,Camera} from 'lucide-react';
 import yogaData from './data/yoga-poses.json';
+import ActivityStudio from './ActivityStudio';
 import {yogaSupabase,YOGA_BUCKET,photoPath,signedYogaPhotos} from './supabaseYoga';
 
 const PRIMARY=['스탠딩','전굴','후굴','힙 오프너','트위스트','암 밸런스','코어','척추 움직임','회복·휴식'];
@@ -324,6 +325,7 @@ const MIND_FLOW_ACTIVITIES = [
   {name:'스트레칭', en:'STRETCHING', icon:'✨'},
   {name:'폼롤러', en:'FOAM ROLLER', icon:'🪷'},
   {name:'마사지', en:'MASSAGE', icon:'💆‍♀️'},
+  {name:'통합 라이브러리', en:'ALL MOVEMENTS & PRESETS', icon:'🔎'},
 ];
 
 export default function YogaLibrary(){
@@ -335,13 +337,9 @@ export default function YogaLibrary(){
     </div>
   );
   if(activity)return (
-    <div style={{padding:'14px 8px 28px'}}>
-      <button type="button" onClick={()=>setActivity(null)} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'10px 15px',border:'1px solid #e7ddec',borderRadius:12,background:'#fff',color:'#775a8f',fontWeight:700,cursor:'pointer'}}>‹ 전체 운동</button>
-      <section style={{marginTop:18,padding:'36px 18px',border:'1px solid #e8ddf0',borderRadius:22,background:'#fff',textAlign:'center',color:'#53435f'}}>
-        <div style={{fontSize:46,marginBottom:10}}>{MIND_FLOW_ACTIVITIES.find(a=>a.name===activity)?.icon}</div>
-        <h2 style={{margin:'0 0 10px',fontSize:23}}>{activity}</h2>
-        <p style={{color:'#94849f',fontSize:14,lineHeight:1.7}}>이 운동의 자세 라이브러리와 프리셋, 시퀀스를<br/>추가할 수 있도록 준비한 공간이에요.</p>
-      </section>
+    <div>
+      <button type="button" onClick={()=>setActivity(null)} style={{display:'inline-flex',alignItems:'center',gap:7,margin:'4px 0 14px',padding:'10px 15px',border:'1px solid #e7ddec',borderRadius:12,background:'#fff',color:'#775a8f',fontWeight:700,cursor:'pointer'}}>‹ 전체 운동</button>
+      <ActivityStudio activity={activity}/>
     </div>
   );
   return (
