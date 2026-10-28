@@ -1,7 +1,4 @@
-npm run build
-git add src/YogaLibrary.jsx
-git commit -m "Add yoga presets for all categories"
-git push origin mainimport React,{useMemo,useState,useEffect,useRef} from 'react';
+import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {Search,Plus,ChevronUp,ChevronDown,Trash2,X,BookOpen,Save,Image as ImageIcon,Upload,Camera} from 'lucide-react';
 import yogaData from './data/yoga-poses.json';
 import ActivityStudio from './ActivityStudio';
