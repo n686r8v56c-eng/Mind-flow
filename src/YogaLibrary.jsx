@@ -1,6 +1,7 @@
 import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {Search,Plus,ChevronUp,ChevronDown,Trash2,X,BookOpen,Save,Image as ImageIcon,Upload,Camera} from 'lucide-react';
 import yogaData from './data/yoga-poses.json';
+import {yogaSupabase,YOGA_BUCKET,photoPath,signedYogaPhotos} from './supabaseYoga';
 
 const PRIMARY=['스탠딩','전굴','후굴','힙 오프너','트위스트','암 밸런스','코어','척추 움직임','회복·휴식'];
 const KEY='mind-flow-yoga-sequences-v1';
@@ -90,6 +91,11 @@ export default function YogaLibrary(){
   const [photoError,setPhotoError]=useState('');
   const fileInput=useRef(null);
   const photoUrls=useRef({});
+  const remotePaths=useRef({});
+  const currentUser=useRef(null);
+  const [cloudPhotos,setCloudPhotos]=useState({});
+  const [cloudStatus,setCloudStatus]=useState('연결 확인 중');
+  // Keep existing browser photos as a fallback; never erase them during migration.
   useEffect(()=>{
     let active=true;
     (async()=>{
@@ -106,11 +112,59 @@ export default function YogaLibrary(){
           }
         }
         if(active)setCustomPhotos(result);
-      }catch(err){if(active)setPhotoError(err.message||'저장된 사진을 불러오지 못했어요.')}
+      }catch(err){if(active)setPhotoError(err.message||'기기 사진을 불러오지 못했어요.')}
     })();
     return ()=>{active=false;Object.values(photoUrls.current).forEach(url=>URL.revokeObjectURL(url));photoUrls.current={}};
   },[]);
-  const photoFor=p=>customPhotos[p.id]||null; // Only user-uploaded photographs; never show imported default art.
+  const loadCloudPhotos=async(user)=>{
+    if(!user||!yogaSupabase)return;
+    const urls={};const paths={};
+    let tableError=null;
+    try{
+      const rows=await signedYogaPhotos(yogaSupabase,user.id);
+      Object.assign(urls,rows.urls);Object.assign(paths,rows.paths);
+    }catch(err){tableError=err}
+    // Rescue already uploaded files even when the metadata table is empty or incomplete.
+    try{
+      const {data:folders,error:folderError}=await yogaSupabase.storage.from(YOGA_BUCKET).list(user.id,{limit:1000});
+      if(folderError)throw folderError;
+      const poseIds=new Set(poses.map(p=>p.id));
+      const names=(folders||[]).filter(f=>poseIds.has(f.name)&&!urls[f.name]);
+      await Promise.all(names.map(async folder=>{
+        const {data:images,error:listError}=await yogaSupabase.storage.from(YOGA_BUCKET).list(`${user.id}/${folder.name}`,{limit:100,sortBy:{column:'created_at',order:'desc'}});
+        if(listError||!images?.length)return;
+        const file=images.find(f=>f.name&&/\.(jpe?g|png|webp)$/i.test(f.name));
+        if(!file)return;
+        const path=`${user.id}/${folder.name}/${file.name}`;
+        const {data:signed,error:signError}=await yogaSupabase.storage.from(YOGA_BUCKET).createSignedUrl(path,3600);
+        if(!signError&&signed?.signedUrl){urls[folder.name]=signed.signedUrl;paths[folder.name]=path}
+      }));
+    }catch(err){if(!Object.keys(urls).length)throw tableError||err}
+    remotePaths.current=paths;
+    setCloudPhotos(urls);
+    setCloudStatus(`${Object.keys(urls).length}개 클라우드 사진 연결`);
+    if(tableError&&Object.keys(urls).length===0)setPhotoError(`사진 목록 조회 실패: ${tableError.message}`);
+  };
+  useEffect(()=>{
+    if(!yogaSupabase){setCloudStatus('Supabase 환경 변수 확인 필요');return}
+    let live=true;
+    const refresh=async()=>{
+      try{
+        const {data:{user},error}=await yogaSupabase.auth.getUser();
+        if(error)throw error;
+        if(!live)return;
+        currentUser.current=user;
+        if(user)await loadCloudPhotos(user);
+        else{setCloudStatus('로그인 후 사진 표시');setCloudPhotos({});remotePaths.current={}}
+      }catch(err){if(live){setCloudStatus('사진 연결 오류');setPhotoError(err.message||'사진 연결 오류')}}
+    };
+    refresh();
+    const {data:listener}=yogaSupabase.auth.onAuthStateChange(()=>{setTimeout(()=>{if(live)refresh()},0)});
+    const onVisible=()=>{if(document.visibilityState==='visible')refresh()};
+    document.addEventListener('visibilitychange',onVisible);
+    return()=>{live=false;listener?.subscription?.unsubscribe();document.removeEventListener('visibilitychange',onVisible)};
+  },[]);
+  const photoFor=p=>cloudPhotos[p.id]||customPhotos[p.id]||null;
   const uploadPhoto=async(event)=>{
     const file=event.target.files?.[0];
     event.target.value='';
@@ -119,21 +173,47 @@ export default function YogaLibrary(){
     setPhotoBusy(true);setPhotoError('');
     try{
       const blob=await compressPhoto(file);
-      await transactPhoto('readwrite','put',id,blob);
-      const url=URL.createObjectURL(blob);
-      if(photoUrls.current[id])URL.revokeObjectURL(photoUrls.current[id]);
-      photoUrls.current[id]=url;
-      setCustomPhotos(prev=>({...prev,[id]:url}));
+      const user=currentUser.current;
+      if(!yogaSupabase||!user)throw new Error('Supabase 로그인 후 사진을 업로드할 수 있어요.');
+      const path=photoPath(user.id,id);
+      const {error:uploadError}=await yogaSupabase.storage.from(YOGA_BUCKET).upload(path,blob,{contentType:'image/jpeg',upsert:false});
+      if(uploadError)throw uploadError;
+      // Existing photos are retained in Storage until the new database reference is saved.
+      const table=yogaSupabase.from('mindflow_yoga_photos');
+      const {data:existing,error:readError}=await table.select('storage_path').eq('user_id',user.id).eq('pose_id',id).limit(1);
+      if(readError)throw new Error(`사진은 Storage에 업로드됐지만 목록 연결 실패: ${readError.message}`);
+      const operation=existing?.length
+        ?table.update({storage_path:path}).eq('user_id',user.id).eq('pose_id',id)
+        :table.insert({user_id:user.id,pose_id:id,storage_path:path});
+      const {error:rowError}=await operation;
+      if(rowError)throw new Error(`사진은 Storage에 보관됐지만 목록 저장 실패: ${rowError.message}`);
+      const {data:signed,error:signError}=await yogaSupabase.storage.from(YOGA_BUCKET).createSignedUrl(path,3600);
+      if(signError)throw signError;
+      remotePaths.current[id]=path;
+      setCloudPhotos(prev=>({...prev,[id]:signed.signedUrl}));
+      setCloudStatus('Supabase에 사진 저장 완료');
+      // Local browser backup, intentionally not used as the primary source.
+      await transactPhoto('readwrite','put',id,blob).catch(()=>{});
     }catch(err){setPhotoError(err.message||'사진 저장에 실패했어요.')}finally{setPhotoBusy(false)}
   };
   const deletePhoto=async()=>{
-    if(!detail||!customPhotos[detail.id])return;
+    if(!detail||!photoFor(detail))return;
+    if(!window.confirm('이 자세의 사진을 삭제할까요?'))return;
     setPhotoBusy(true);setPhotoError('');
     try{
-      await transactPhoto('readwrite','delete',detail.id);
-      if(photoUrls.current[detail.id])URL.revokeObjectURL(photoUrls.current[detail.id]);
-      delete photoUrls.current[detail.id];
-      setCustomPhotos(prev=>{const next={...prev};delete next[detail.id];return next});
+      const id=detail.id,user=currentUser.current;
+      if(yogaSupabase&&user){
+        const {error:rowError}=await yogaSupabase.from('mindflow_yoga_photos').delete().eq('user_id',user.id).eq('pose_id',id);
+        if(rowError)throw rowError;
+        // Do not delete historical Storage objects silently: a recovery copy is valuable.
+        delete remotePaths.current[id];
+        setCloudPhotos(prev=>{const next={...prev};delete next[id];return next});
+      }
+      await transactPhoto('readwrite','delete',id);
+      if(photoUrls.current[id])URL.revokeObjectURL(photoUrls.current[id]);
+      delete photoUrls.current[id];
+      setCustomPhotos(prev=>{const next={...prev};delete next[id];return next});
+      setCloudStatus('사진 표시 연결을 삭제했어요 (Storage 원본 보존)');
     }catch(err){setPhotoError(err.message||'사진 삭제에 실패했어요.')}finally{setPhotoBusy(false)}
   };
   useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(saved))}catch{}},[saved]);
@@ -224,11 +304,11 @@ export default function YogaLibrary(){
     {detail&&<div className="modal-backdrop" onClick={()=>setDetail(null)}><div className="video-modal yoga-detail" role="dialog" aria-modal="true" aria-label="요가 자세 상세" onClick={e=>e.stopPropagation()}><div className="modal-header"><b>{detail.nameKo||detail.sanskrit}</b><button className="iconbtn" onClick={()=>setDetail(null)}><X/></button></div><div className="yoga-detail-preview">{photoFor(detail)?<img src={photoFor(detail)} alt={detail.nameKo}/>:<><BookOpen size={34}/><span>사진을 등록해 주세요</span></>}</div>
       <input ref={fileInput} type="file" accept="image/*" onChange={uploadPhoto} style={{display:'none'}} aria-label="요가 자세 사진 선택"/>
       <div style={{display:'flex',gap:8,margin:'12px 0',alignItems:'center',flexWrap:'wrap'}}>
-        <button type="button" disabled={photoBusy} onClick={()=>{setPhotoError('');fileInput.current?.click()}} style={{flex:1,minWidth:150,display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'12px',border:'none',borderRadius:12,background:'#eee3f6',color:'#795b99',fontWeight:700,cursor:'pointer'}}><Camera size={18}/>{photoBusy?'사진 처리 중…':customPhotos[detail.id]?'사진 변경':'사진 업로드'}</button>
-        {customPhotos[detail.id]&&<button type="button" disabled={photoBusy} onClick={deletePhoto} style={{display:'flex',alignItems:'center',gap:5,padding:'12px',border:'1px solid #e2d9eb',borderRadius:12,background:'white',color:'#8a718e'}}><Trash2 size={16}/> 사진 삭제</button>}
+        <button type="button" disabled={photoBusy} onClick={()=>{setPhotoError('');fileInput.current?.click()}} style={{flex:1,minWidth:150,display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'12px',border:'none',borderRadius:12,background:'#eee3f6',color:'#795b99',fontWeight:700,cursor:'pointer'}}><Camera size={18}/>{photoBusy?'사진 처리 중…':photoFor(detail)?'사진 변경':'사진 업로드'}</button>
+        {photoFor(detail)&&<button type="button" disabled={photoBusy} onClick={deletePhoto} style={{display:'flex',alignItems:'center',gap:5,padding:'12px',border:'1px solid #e2d9eb',borderRadius:12,background:'white',color:'#8a718e'}}><Trash2 size={16}/> 사진 삭제</button>}
       </div>
       {photoError&&<p role="alert" style={{color:'#b42347',fontSize:13}}>{photoError}</p>}
-      <p style={{fontSize:12,color:'#9b8ba8',margin:'0 0 12px'}}>사진은 이 기기에 저장돼요. 다른 기기에는 자동 동기화되지 않아요.</p>
+      <p style={{fontSize:12,color:'#9b8ba8',margin:'0 0 12px'}}>Supabase Storage 사진 동기화 · {cloudStatus}</p>
       <p><b>산스크리트어</b> · {detail.sanskrit}</p><p><b>카테고리</b> · {(detail.categories||[]).join(' · ')}</p><p className="muted">자세 설명·정렬 포인트는 추후 추가할 예정이에요. 기본 유지 박자: {detail.defaultBeats||8}박</p><button className="yoga-add yoga-detail-add" onClick={()=>{add(detail);setDetail(null)}}><Plus size={16}/> 시퀀스에 추가</button></div></div>}
   </div>
 }
