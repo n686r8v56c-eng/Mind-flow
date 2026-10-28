@@ -67,7 +67,7 @@ function compressPhoto(file){
 }
 
 const getSaved=()=>{try{const val=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(val)?val:[]}catch{return []}};
-export default function YogaLibrary(){
+function YogaContent(){
   const poses=yogaData.poses||[];
   const [query,setQuery]=useState('');
   const [category,setCategory]=useState('전체');
@@ -311,4 +311,52 @@ export default function YogaLibrary(){
       <p style={{fontSize:12,color:'#9b8ba8',margin:'0 0 12px'}}>Supabase Storage 사진 동기화 · {cloudStatus}</p>
       <p><b>산스크리트어</b> · {detail.sanskrit}</p><p><b>카테고리</b> · {(detail.categories||[]).join(' · ')}</p><p className="muted">자세 설명·정렬 포인트는 추후 추가할 예정이에요. 기본 유지 박자: {detail.defaultBeats||8}박</p><button className="yoga-add yoga-detail-add" onClick={()=>{add(detail);setDetail(null)}}><Plus size={16}/> 시퀀스에 추가</button></div></div>}
   </div>
+}
+
+
+// Top-level activity selector. Keep YogaContent unchanged so existing photos,
+// presets and sequences continue to work as before.
+const MIND_FLOW_ACTIVITIES = [
+  {name:'요가', en:'YOGA', icon:'🧘‍♀️'},
+  {name:'매트 필라테스', en:'MAT PILATES', icon:'🤸‍♀️'},
+  {name:'SNPE', en:'SNPE', icon:'🌿'},
+  {name:'골반순환', en:'PELVIC FLOW', icon:'🌸'},
+  {name:'스트레칭', en:'STRETCHING', icon:'✨'},
+  {name:'폼롤러', en:'FOAM ROLLER', icon:'🪷'},
+  {name:'마사지', en:'MASSAGE', icon:'💆‍♀️'},
+];
+
+export default function YogaLibrary(){
+  const [activity,setActivity]=useState(null);
+  if(activity==='요가')return (
+    <div>
+      <button type="button" onClick={()=>setActivity(null)} style={{display:'inline-flex',alignItems:'center',gap:7,margin:'4px 0 14px',padding:'10px 15px',border:'1px solid #e7ddec',borderRadius:12,background:'#fff',color:'#775a8f',fontWeight:700,cursor:'pointer'}}>‹ 전체 운동</button>
+      <YogaContent />
+    </div>
+  );
+  if(activity)return (
+    <div style={{padding:'14px 8px 28px'}}>
+      <button type="button" onClick={()=>setActivity(null)} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'10px 15px',border:'1px solid #e7ddec',borderRadius:12,background:'#fff',color:'#775a8f',fontWeight:700,cursor:'pointer'}}>‹ 전체 운동</button>
+      <section style={{marginTop:18,padding:'36px 18px',border:'1px solid #e8ddf0',borderRadius:22,background:'#fff',textAlign:'center',color:'#53435f'}}>
+        <div style={{fontSize:46,marginBottom:10}}>{MIND_FLOW_ACTIVITIES.find(a=>a.name===activity)?.icon}</div>
+        <h2 style={{margin:'0 0 10px',fontSize:23}}>{activity}</h2>
+        <p style={{color:'#94849f',fontSize:14,lineHeight:1.7}}>이 운동의 자세 라이브러리와 프리셋, 시퀀스를<br/>추가할 수 있도록 준비한 공간이에요.</p>
+      </section>
+    </div>
+  );
+  return (
+    <section style={{padding:'10px 4px 26px'}}>
+      <div style={{padding:'5px 5px 18px'}}>
+        <h2 style={{margin:'0 0 7px',fontSize:23,color:'#53435f'}}>마인드 플로우</h2>
+        <p style={{margin:0,color:'#9b8ca5',fontSize:14}}>오늘의 운동을 선택해 주세요.</p>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:12}}>
+        {MIND_FLOW_ACTIVITIES.map((item,i)=><button type="button" key={item.name} onClick={()=>setActivity(item.name)} style={{minWidth:0,minHeight:124,padding:'18px 8px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:7,background:i===0?'#eee6f7':'#faf7fc',color:'#684b7c',border:'1px solid #eadff0',borderRadius:18,cursor:'pointer',fontFamily:'inherit'}}>
+          <span aria-hidden="true" style={{fontSize:30,lineHeight:1.2}}>{item.icon}</span>
+          <strong style={{fontSize:16,wordBreak:'keep-all'}}>{item.name}</strong>
+          <small style={{fontSize:10,letterSpacing:1,color:'#a18cac'}}>{item.en}</small>
+        </button>)}
+      </div>
+    </section>
+  );
 }
