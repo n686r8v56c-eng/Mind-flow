@@ -23,7 +23,8 @@ export default function PelvicStudio({ NatureSounds = null }) {
   const exercises = data.exercises || [];
   const saved = data.saved || [];
   const folders = data.folders || {};
-  const favorites = data.favorites || {};
+  const favorites = data.favorites || {}; // Legacy: retained for compatibility, no longer shown
+  const videoBookmarks = data.videoBookmarks || [];
   const [tab,setTab] = useState('library');
   const [major,setMajor] = useState('앞뒤찢기');
   const [search,setSearch] = useState('');
@@ -34,7 +35,9 @@ export default function PelvicStudio({ NatureSounds = null }) {
   const [sequenceName,setSequenceName] = useState('');
   const [loadedId,setLoadedId] = useState(null);
   const [folderPath,setFolderPath] = useState(null);
-  const [bookmarkPick,setBookmarkPick] = useState('');
+  const [videoDraft,setVideoDraft] = useState({url:'',title:'',folder:''});
+  const [videoEditing,setVideoEditing] = useState(null);
+  const [videoSearch,setVideoSearch] = useState('');
   const [playIndex,setPlayIndex] = useState(-1);
   const [remain,setRemain] = useState(0);
   const [paused,setPaused] = useState(false);
@@ -110,6 +113,22 @@ export default function PelvicStudio({ NatureSounds = null }) {
     const path=x.major;
     update({favorites:{...favorites,[x.id]:favorites[x.id]?undefined:path}});
   };
+  const getVideoId = raw => {
+    try {
+      const u=new URL(raw.trim());const host=u.hostname.replace(/^www\./,'').replace(/^m\./,'');
+      if(host==='youtu.be')return u.pathname.split('/')[1]||'';
+      if(['youtube.com','youtube-nocookie.com','music.youtube.com'].includes(host))return u.searchParams.get('v')||u.pathname.match(/^\/(shorts|live|embed)\/([^/]+)/)?.[2]||'';
+    }catch{} return '';
+  };
+  const saveVideo=()=>{
+    const id=getVideoId(videoDraft.url);
+    if(!/^[\w-]{11}$/.test(id))return alert('올바른 YouTube 링크를 입력해줘.');
+    const folder=videoDraft.folder||folderPath||allPaths[0];
+    const video={id:videoEditing||uid(),videoId:id,url:`https://www.youtube.com/watch?v=${id}`,title:videoDraft.title.trim()||'제목 미입력 영상',folder};
+    update({videoBookmarks:videoEditing?videoBookmarks.map(x=>x.id===videoEditing?video:x):[...videoBookmarks,video]});
+    setVideoEditing(null);setVideoDraft({url:'',title:'',folder:folderPath||''});
+  };
+  const editVideo=v=>{setVideoEditing(v.id);setVideoDraft({url:v.url,title:v.title,folder:v.folder});};
   const addFolder=path=>{
     const name=prompt('새 서브폴더 이름'); if(!name?.trim())return;
     const key=`${path}/${name.trim()}`;
@@ -138,22 +157,48 @@ export default function PelvicStudio({ NatureSounds = null }) {
       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>{['전체',...tags].map(t=><button key={t} style={{...btn,padding:'5px 9px',borderRadius:40,background:activeTag===t?'#e4d3f1':'#fff'}} onClick={()=>setActiveTag(t)}>{t==='전체'?t:`#${t}`}</button>)}</div>
       <button style={{...btn,marginBottom:12}} onClick={()=>editing?clearEdit():setEditing('new')}>＋ 새 동작 등록</button>
       {editing && <div style={{...card,marginBottom:14,display:'grid',gap:10}}><strong>{editing==='new'?`${major} 동작 등록`:'운동 수정'}</strong><input className="pelvic-input" style={field} placeholder="동작명" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><textarea className="pelvic-input" style={{...field,minHeight:76}} placeholder="설명 / 주의사항 (선택)" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><label>기본 시간 (초)<input className="pelvic-input" style={field} type="number" min="1" max="3600" value={form.seconds} onChange={e=>setForm({...form,seconds:e.target.value})}/></label><input className="pelvic-input" style={field} placeholder="태그: 초급, 힙업, 누워서" value={form.tags} onChange={e=>setForm({...form,tags:e.target.value})}/><label style={{...btn,textAlign:'center',display:'block'}}>＋ 사진 업로드<input type="file" accept="image/*" hidden onChange={changePhoto}/></label>{form.image&&<img alt="업로드 미리보기" src={form.image} style={{width:140,height:110,objectFit:'cover',borderRadius:10}}/>}<div><button style={btn} onClick={saveExercise}>저장</button> <button style={btn} onClick={clearEdit}>취소</button></div></div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>{filtered.map(x=><div key={x.id} style={card} className="pelvic-card"><div style={{aspectRatio:'4/3',background:'#f8f3fb',borderRadius:14,overflow:'hidden',display:'grid',placeItems:'center'}}>{x.image?<img src={x.image} alt={x.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{color:'#b5a3c2'}}>＋ 사진</span>}</div><strong style={{display:'block',margin:'10px 0 4px'}}>{x.name}</strong><small>{x.seconds}초 · {(x.tags||[]).map(t=>`#${t}`).join(' ')}</small><div style={{display:'flex',gap:4,marginTop:10,flexWrap:'wrap'}}><button title="시퀀스에 추가" style={btn} onClick={()=>addToSequence(x)}>＋</button><button title="북마크" style={btn} onClick={()=>bookmark(x)}>{favorites[x.id]?'★':'☆'}</button><button title="수정" style={btn} onClick={()=>editExercise(x)}>✎</button><button title="삭제" style={btn} onClick={()=>{if(confirm('운동을 삭제할까?'))update({exercises:exercises.filter(y=>y.id!==x.id)})}}>×</button></div></div>)}</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>{filtered.map(x=><div key={x.id} style={card} className="pelvic-card"><div style={{aspectRatio:'4/3',background:'#f8f3fb',borderRadius:14,overflow:'hidden',display:'grid',placeItems:'center'}}>{x.image?<img src={x.image} alt={x.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{color:'#b5a3c2'}}>＋ 사진</span>}</div><strong style={{display:'block',margin:'10px 0 4px'}}>{x.name}</strong><small>{x.seconds}초 · {(x.tags||[]).map(t=>`#${t}`).join(' ')}</small><div style={{display:'flex',gap:4,marginTop:10,flexWrap:'wrap'}}><button title="시퀀스에 추가" style={btn} onClick={()=>addToSequence(x)}>＋</button><button title="수정" style={btn} onClick={()=>editExercise(x)}>✎</button><button title="삭제" style={btn} onClick={()=>{if(confirm('운동을 삭제할까?'))update({exercises:exercises.filter(y=>y.id!==x.id)})}}>×</button></div></div>)}</div>
       {!filtered.length&&<p style={{color:'#9987a5',textAlign:'center',padding:25}}>등록된 운동이 없어. + 새 동작 등록을 눌러줘.</p>}
     </>}
     {tab==='sequence'&&<div style={card}><h3>나의 골반순환 시퀀스</h3><input className="pelvic-input" style={field} value={sequenceName} onChange={e=>setSequenceName(e.target.value)} placeholder="시퀀스 이름 직접 입력"/><p style={{fontSize:12,color:'#927ca0'}}>운동 라이브러리에서 ＋ 버튼을 누르면 자동으로 추가돼.</p>{draft.map((x,i)=><div key={x.id} style={{display:'flex',alignItems:'center',gap:7,borderBottom:'1px solid #e8ddf1',padding:'12px 0'}}><small>{i+1}</small><div style={{height:50,width:50,borderRadius:9,background:'#f6f1fa',flexShrink:0,overflow:'hidden'}}>{x.image&&<img alt="" src={x.image} style={{width:'100%',height:'100%',objectFit:'cover'}}/>}</div><div style={{flex:1,minWidth:0}}><strong style={{fontSize:13,display:'block'}}>{x.name}</strong><input aria-label="운동 시간 (초)" type="number" min="1" max="3600" value={x.seconds} onChange={e=>setDraft(d=>d.map(y=>y.id===x.id?{...y,seconds:e.target.value}:y))} style={{...field,width:77,padding:6,marginTop:3}}/> 초</div><button style={btn} onClick={()=>moveSequence(i,-1)}>↑</button><button style={btn} onClick={()=>moveSequence(i,1)}>↓</button><button style={btn} onClick={()=>setDraft(d=>d.filter(y=>y.id!==x.id))}>×</button></div>)}<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:15}}><button style={btn} onClick={start}>▶ 시작</button><button style={btn} onClick={stop}>Ⅱ 정지</button><button style={btn} onClick={saveSequence}>▣ 시퀀스 저장</button><button style={btn} onClick={()=>{stop();setDraft([]);setLoadedId(null);setSequenceName('');}}>＋ 새 시퀀스</button></div><h3 style={{marginTop:25}}>저장된 시퀀스</h3>{saved.map(s=><div key={s.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderTop:'1px solid #e9dcf0'}}><div style={{flex:1}}><strong>{s.name}</strong><small style={{display:'block'}}>{s.items.length}개 동작</small></div><button style={btn} onClick={()=>{stop();setLoadedId(s.id);setSequenceName(s.name);setDraft(s.items.map(x=>({...x})));}}>불러오기</button><button style={btn} onClick={()=>{if(confirm('저장된 시퀀스를 삭제할까?'))update({saved:saved.filter(x=>x.id!==s.id)})}}>삭제</button></div>)}</div>}
-    {tab==='bookmarks'&&<div style={card}><h3>북마크</h3><p style={{fontSize:12,color:'#927ca0'}}>기본 6개 분류 → 사용자 서브폴더</p>{folderPath!==null&&<button style={btn} onClick={()=>setFolderPath(folderPath.includes('/')?folderPath.slice(0,folderPath.lastIndexOf('/')):null)}>← 상위 폴더</button>}<div style={{display:'grid',gap:8,marginTop:12}}>{allPaths.filter(p=>folderPath===null?!p.includes('/'):p.startsWith(folderPath+'/')&&p.slice(folderPath.length+1).indexOf('/')===-1).map(p=><div key={p} style={{display:'flex',gap:8,alignItems:'center'}}><button style={{...btn,background:'#fff',flex:1,textAlign:'left'}} onClick={()=>setFolderPath(p)}>▣ {p.split('/').at(-1)} ({Object.values(favorites).filter(v=>v===p).length})</button>{folders[p]&&<button style={btn} onClick={()=>{if(confirm('이 폴더를 삭제할까?')){const f=Object.fromEntries(Object.entries(folders).filter(([k])=>k!==p&&!k.startsWith(p+'/')));update({folders:f});}}}>×</button>}</div>)}{folderPath&&<button style={btn} onClick={()=>addFolder(folderPath)}>＋ 서브폴더</button>}
-    {folderPath&&<div style={{marginTop:14,padding:12,border:'1px solid #e6dcee',borderRadius:14,background:'#faf7fc'}}>
-      <b style={{display:'block',marginBottom:8}}>＋ 북마크 추가</b>
-      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-        <select aria-label="북마크에 추가할 운동" value={bookmarkPick} onChange={e=>setBookmarkPick(e.target.value)} style={{...field,flex:'1 1 155px',minWidth:0}}>
-          <option value="">운동을 선택하세요</option>
-          {exercises.filter(x=>x.major===folderPath.split('/')[0] && favorites[x.id]!==folderPath).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
-        </select>
-        <button style={btn} onClick={()=>{if(!bookmarkPick)return alert('운동을 선택해줘.');update({favorites:{...favorites,[bookmarkPick]:folderPath}});setBookmarkPick('');}}>＋ 추가</button>
+    {tab==='bookmarks'&&<div style={card}>
+      <h3>영상 북마크</h3>
+      <p style={{fontSize:12,color:'#927ca0'}}>유튜브 링크 저장 · 기본 분류 · 사용자 서브폴더</p>
+      {folderPath!==null&&<button style={btn} onClick={()=>{setFolderPath(folderPath.includes('/')?folderPath.slice(0,folderPath.lastIndexOf('/')):null);setVideoEditing(null);}}>← 상위 폴더</button>}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8,margin:'14px 0'}}>
+        {allPaths.filter(p=>folderPath===null?!p.includes('/'):p.startsWith(folderPath+'/')&&p.slice(folderPath.length+1).indexOf('/')===-1).map(p=><button key={p} style={{...btn,textAlign:'center',minHeight:70}} onClick={()=>{setFolderPath(p);setVideoDraft(d=>({...d,folder:p}));}}>
+          <b style={{display:'block'}}>{p.split('/').at(-1)}</b>
+          <small>{videoBookmarks.filter(v=>v.folder===p||v.folder.startsWith(p+'/')).length}개 영상</small>
+        </button>)}
       </div>
-      <p style={{fontSize:12,color:'#9987a5',marginBottom:0}}>운동은 해당 대분류 라이브러리에 먼저 등록해줘. 다른 폴더의 북마크를 선택하면 이 폴더로 이동해.</p>
-    </div>}</div>{folderPath&&<div style={{marginTop:18}}><h4>이 폴더의 운동</h4>{exercises.filter(x=>favorites[x.id]===folderPath).map(x=><div key={x.id} style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}><span style={{flex:1}}>{x.name}</span><button style={btn} onClick={()=>addToSequence(x)}>＋ 시퀀스</button><select aria-label="북마크 폴더 이동" style={{...field,width:100,padding:6}} value={favorites[x.id]} onChange={e=>update({favorites:{...favorites,[x.id]:e.target.value}})}>{allPaths.map(p=><option key={p} value={p}>{p.split('/').at(-1)}</option>)}</select></div>)}</div>}</div>}
+      {folderPath&&<button style={{...btn,width:'100%',marginBottom:14}} onClick={()=>addFolder(folderPath)}>＋ 새 서브폴더</button>}
+      <div style={{...card,background:'#faf6fc',margin:'14px 0'}}>
+        <h3 style={{marginTop:0}}>{videoEditing?'북마크 수정':'새 북마크'}</h3>
+        <label style={{display:'block',marginBottom:9}}>유튜브 링크
+          <input style={field} type="url" placeholder="https://youtu.be/..." value={videoDraft.url} onChange={e=>setVideoDraft(d=>({...d,url:e.target.value}))}/>
+        </label>
+        <label style={{display:'block',marginBottom:9}}>영상 제목
+          <input style={field} placeholder="영상 제목 입력" value={videoDraft.title} onChange={e=>setVideoDraft(d=>({...d,title:e.target.value}))}/>
+        </label>
+        <label style={{display:'block',marginBottom:12}}>폴더
+          <select style={field} value={videoDraft.folder||folderPath||allPaths[0]} onChange={e=>setVideoDraft(d=>({...d,folder:e.target.value}))}>
+            {allPaths.map(p=><option key={p} value={p}>{p.replaceAll('/',' / ')}</option>)}
+          </select>
+        </label>
+        <div style={{display:'flex',gap:8}}><button style={btn} onClick={saveVideo}>저장</button><button style={btn} onClick={()=>{setVideoEditing(null);setVideoDraft({url:'',title:'',folder:folderPath||''});}}>취소</button></div>
+        <p style={{fontSize:12,color:'#927ca0'}}>썸네일은 YouTube 주소에서 자동 표시해요. 제목은 직접 입력할 수 있어요.</p>
+      </div>
+      <input style={{...field,marginBottom:12}} placeholder="영상 제목 검색" value={videoSearch} onChange={e=>setVideoSearch(e.target.value)}/>
+      <h3>{folderPath?`${folderPath.split('/').at(-1)} 영상`:'전체 영상'}</h3>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>
+        {videoBookmarks.filter(v=>(!folderPath||v.folder===folderPath||v.folder.startsWith(folderPath+'/'))&&v.title.toLowerCase().includes(videoSearch.toLowerCase())).map(v=><div key={v.id} style={{...card,padding:8,minWidth:0}}>
+          <a href={v.url} target="_blank" rel="noopener noreferrer" aria-label={`${v.title} YouTube에서 보기`}><img src={`https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`} alt={v.title} loading="lazy" style={{width:'100%',aspectRatio:'16/9',objectFit:'cover',borderRadius:10}}/></a>
+          <b style={{display:'block',fontSize:13,overflowWrap:'anywhere',margin:'7px 0'}}>{v.title}</b>
+          <small style={{display:'block',color:'#987daa'}}>{v.folder.replaceAll('/',' / ')}</small>
+          <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:8}}><a href={v.url} target="_blank" rel="noopener noreferrer" style={{...btn,textDecoration:'none'}}>▶ 보기</a><button style={btn} onClick={()=>editVideo(v)}>수정</button><button style={btn} onClick={()=>{if(confirm('이 북마크를 삭제할까?'))update({videoBookmarks:videoBookmarks.filter(x=>x.id!==v.id)});}}>삭제</button></div>
+        </div>)}
+      </div>
+    </div>}
     {current&&<div role="dialog" aria-modal="true" aria-label="골반순환 시퀀스 재생" style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(38,28,49,.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:16,animation:'pelvicFade .2s'}}><div style={{...card,maxWidth:450,width:'100%',maxHeight:'95vh',overflowY:'auto',padding:20,borderRadius:25}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:15}}><b>골반순환 시퀀스 재생 · {playIndex+1}/{draft.length}</b><button onClick={stop} style={{...btn,background:'white'}}>✕</button></div><div style={{height:240,background:'#f8f4fb',borderRadius:15,overflow:'hidden',display:'grid',placeItems:'center'}}>{current.image?<img src={current.image} alt={current.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>:<span>등록한 운동 사진이 여기에 표시돼</span>}</div><h2 style={{textAlign:'center',margin:'16px 0 8px'}}>{current.name}</h2><div style={{fontSize:62,fontWeight:700,textAlign:'center',fontVariantNumeric:'tabular-nums'}}>{secs(remain)}</div><p style={{textAlign:'center',color:'#9687a0',fontSize:13}}>남은 시간 · 한국어 음성 안내</p><label style={{display:'flex',gap:6,justifyContent:'center',fontSize:13,marginBottom:12}}><input type="checkbox" checked={voice} onChange={e=>setVoice(e.target.checked)}/> 한국어 음성 안내</label><div style={{display:'flex',justifyContent:'center',gap:6,flexWrap:'wrap'}}><button style={btn} disabled={playIndex===0} onClick={()=>go(playIndex-1)}>◀ 이전</button><button style={btn} onClick={()=>{setPaused(v=>!v);if(typeof speechSynthesis!=='undefined') speechSynthesis.cancel();}}>{paused?'▶ 재개':'Ⅱ 일시정지'}</button><button style={btn} onClick={()=>go(playIndex+1)}>다음 ▶</button><button style={btn} onClick={stop}>종료</button></div><div style={{borderTop:'1px solid #e6dcee',marginTop:16,paddingTop:14}}><b>자연의 소리</b>{NatureSounds?<div style={{marginTop:8}}><NatureSounds/></div>:<p style={{fontSize:12,color:'#9d8aaa'}}>기존 Mind Flow 자연음 플레이어를 연결할 자리입니다. 기존 사운드를 유지하려면 NatureSounds 속성으로 전달하세요.</p>}</div></div></div>}
   </div>;
 }
