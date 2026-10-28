@@ -1,4 +1,7 @@
-import React,{useMemo,useState,useEffect,useRef} from 'react';
+npm run build
+git add src/YogaLibrary.jsx
+git commit -m "Add yoga presets for all categories"
+git push origin mainimport React,{useMemo,useState,useEffect,useRef} from 'react';
 import {Search,Plus,ChevronUp,ChevronDown,Trash2,X,BookOpen,Save,Image as ImageIcon,Upload,Camera} from 'lucide-react';
 import yogaData from './data/yoga-poses.json';
 import ActivityStudio from './ActivityStudio';
@@ -15,8 +18,23 @@ const BASE_PRESETS=[
  {id:'standing-strength',name:'하체 강화',cat:'스탠딩',names:['Ashta Chandrasana','Virabhadrasana I','Virabhadrasana II','Utthita Parsvakonasana','Utthita Trikonasana','Parsvottanasana']},
  {id:'standing-balance',name:'균형과 집중',cat:'스탠딩',names:['Vrksasana','Garudasana','Utthita Hasta Padangusthasana','Virabhadrasana III','Ardha Chandrasana']},
  {id:'standing-rotation',name:'회전과 확장',cat:'스탠딩',names:['Parivrtta Utkatasana','Parivrtta Anjaneyasana','Parivrtta Parsvakonasana','Parivrtta Trikonasana','Parivrtta Ardha Chandrasana']},
- {id:'standing-cooldown',name:'마무리',cat:'스탠딩',names:['Malasana','Prasarita Padottanasana','Parivrtta Prasarita Padottanasana','Tadasana']}
-];
+ {id:'standing-cooldown',name:'마무리',cat:'스탠딩',names:['Malasana','Prasarita Padottanasana','Parivrtta Prasarita Padottanasana','Tadasana']},
+ {id:'forward-gentle',name:'기본 전굴',cat:'전굴',names:['Dandasana', 'Janu Sirsasana', 'Paschimottanasana', 'Balasana']},
+ {id:'forward-deep',name:'전굴과 고관절',cat:'전굴',names:['Upavistha Konasana', 'Triang Mukhaikapada Paschimottanasana', 'Parivrtta Janu Sirsasana', 'Balasana']},
+ {id:'backbend-soft',name:'부드러운 후굴',cat:'후굴',names:['Salamba Bhujangasana', 'Bhujangasana', 'Salabhasana', 'Balasana']},
+ {id:'backbend-extension',name:'가슴 열기와 후굴',cat:'후굴',names:['Anahatasana', 'Ustrasana', 'Setu Bandha Sarvangasana', 'Supported Setu Bandha']},
+ {id:'hip-basic',name:'고관절 기본 이완',cat:'힙 오프너',names:['Sukhasana', 'Baddha Konasana', 'Ananda Balasana', 'Supta Baddha Konasana']},
+ {id:'hip-range',name:'고관절 유연성',cat:'힙 오프너',names:['Malasana', 'Ardha Kapotasana', 'Agnistambhasana', 'Supta Baddha Konasana']},
+ {id:'twist-seated',name:'앉아서 트위스트',cat:'트위스트',names:['Dandasana', 'Bharadvajasana', 'Ardha Matsyendrasana', 'Sukhasana']},
+ {id:'twist-supine',name:'누워서 트위스트',cat:'트위스트',names:['Supine Twist', 'Jathara Parivartanasana', 'Prop Twist', 'Savasana']},
+ {id:'arm-foundations',name:'암 밸런스 기초',cat:'암 밸런스',names:['Adho Mukha Svanasana', 'Phalakasana', 'Makara Adho Mukha Svanasana', 'Balasana']},
+ {id:'arm-balance',name:'손 균형 연습',cat:'암 밸런스',names:['Phalakasana', 'Kakasana', 'Bakasana', 'Balasana']},
+ {id:'core-basic',name:'코어 기초',cat:'코어',names:['Phalakasana', 'Makara Adho Mukha Svanasana', 'Navasana', 'Balasana']},
+ {id:'core-balance',name:'코어와 균형',cat:'코어',names:['Navasana', 'Ubhaya Padangusthasana', 'Vasisthasana', 'Balasana']},
+ {id:'spine-mobility',name:'척추 움직임 기본',cat:'척추 움직임',names:['Bharmanasana', 'Marjaryasana', 'Bitilasana', 'Balasana']},
+ {id:'spine-restore',name:'척추 부드럽게 풀기',cat:'척추 움직임',names:['Marjaryasana', 'Bitilasana', 'Anahatasana', 'Balasana']},
+ {id:'restore-rest',name:'짧은 휴식',cat:'회복·휴식',names:['Sukhasana', 'Balasana', 'Savasana']},
+ {id:'restore-relax',name:'누워서 회복',cat:'회복·휴식',names:['Supta Baddha Konasana', 'Supported Setu Bandha', 'Supine Twist', 'Savasana']}];
 const readCustomPresets=()=>{try{const v=JSON.parse(localStorage.getItem(PRESET_KEY)||'[]');return Array.isArray(v)?v:[]}catch{return []}};
 
 const unique=arr=>[...new Set(arr)];
