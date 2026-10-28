@@ -367,7 +367,7 @@ export default function YogaLibrary(){
         : activity==='골반순환' ? <PelvicStudio/>
         : activity==='맨몸근력' ? <BodyweightStudio/>
         : <ActivityStudio activity={activity}/>}
-      <NatureSound />
+      {!['골반순환','맨몸근력'].includes(activity)&&<NatureSound />}
     </div>
   );
   return (
