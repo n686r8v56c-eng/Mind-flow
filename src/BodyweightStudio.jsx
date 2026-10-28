@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {loadStudio,saveStudio,uploadStudioPhoto} from './studioCloud';
 
-/* Drop-in Mind Flow tab. Data is browser-local until connected to the app's Supabase layer.
-   For the EXISTING nature-sound mixer, pass NatureSounds as a prop:
+/* Supabase-backed Mind Flow STUDIO.
+   For the existing nature-sound mixer, pass NatureSounds as a prop:
    <BodyweightStudio NatureSounds={YourExistingNatureSoundComponent} />
 */
 const STRUCTURE = {
@@ -29,7 +29,26 @@ export default function BodyweightStudio({ NatureSounds = null }) {
   const [cloudReady,setCloudReady]=useState(false);
   const [cloudError,setCloudError]=useState('');
   const saveQueue=useRef(Promise.resolve());
-  useEffect(()=>{let alive=true;loadStudio('bodyweight').then(record=>{if(alive){setData(record);setCloudReady(true)}}).catch(e=>{if(alive)setCloudError('Supabase 불러오기 실패: '+e.message)});return()=>{alive=false}},[]);
+  const dirtyRef=useRef(false);
+  const mountedRef=useRef(true);
+  useEffect(()=>{
+    let alive=true;
+    mountedRef.current=true;
+    const onPhotos=urls=>{
+      if(!alive)return;
+      const addPhoto=x=>x.imagePath && urls[x.imagePath]
+        ? {...x,image:urls[x.imagePath]} : x;
+      // Image URL hydration is presentation-only, not a new database write.
+      setData(prev=>({...prev,
+        exercises:(prev.exercises||[]).map(addPhoto),
+        saved:(prev.saved||[]).map(seq=>({...seq,items:(seq.items||[]).map(addPhoto)}))
+      }));
+    };
+    loadStudio('bodyweight',onPhotos)
+      .then(record=>{if(alive){setData(record);setCloudError('');setCloudReady(true)}})
+      .catch(e=>{if(alive)setCloudError('Supabase 불러오기 실패: '+e.message)});
+    return()=>{alive=false;mountedRef.current=false};
+  },[]);
   const exercises = data.exercises || [];
   const saved = data.saved || [];
   const folders = data.folders || {};
@@ -59,11 +78,11 @@ export default function BodyweightStudio({ NatureSounds = null }) {
   const draftRef = useRef([]);
   const pausedRef = useRef(false);
   const playRef = useRef(false);
-  useEffect(()=>{if(!cloudReady)return;saveQueue.current=saveQueue.current.catch(()=>{}).then(()=>saveStudio('bodyweight',data)).catch(e=>{setCloudError('Supabase 저장 실패: '+e.message)});},[data,cloudReady]);
+  useEffect(()=>{if(!cloudReady||!dirtyRef.current)return;dirtyRef.current=false;saveQueue.current=saveQueue.current.catch(()=>{}).then(()=>saveStudio('bodyweight',data)).catch(e=>{if(mountedRef.current)setCloudError('Supabase 저장 실패: '+e.message)});},[data,cloudReady]);
   useEffect(()=>{draftRef.current=draft;},[draft]);
   useEffect(()=>{indexRef.current=playIndex;playRef.current=playIndex>=0;},[playIndex]);
   useEffect(()=>{pausedRef.current=paused;},[paused]);
-  const update = patch => setData(d=>({...d,...(typeof patch==='function'?patch(d):patch)}));
+  const update = patch => {if(!cloudReady)return;dirtyRef.current=true;setData(d=>({...d,...(typeof patch==='function'?patch(d):patch)}));};
   const voiceSay = (sentence) => {
     if(!voice || typeof speechSynthesis==='undefined') return;
     speechSynthesis.cancel();
@@ -164,12 +183,13 @@ export default function BodyweightStudio({ NatureSounds = null }) {
   const tags=[...new Set(tagged.flatMap(x=>x.tags||[]))];
   const filtered=tagged.filter(x=>(activeTag==='전체'||x.tags?.includes(activeTag))&&`${x.name} ${x.description} ${(x.tags||[]).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
   const current=playIndex>=0?draft[playIndex]:null;
-  if(cloudError&&!cloudReady)return <div role="alert" style={{padding:24,color:'#ad3865'}}>{cloudError}</div>;
-  if(!cloudReady)return <div style={{padding:24}}>Supabase에서 운동 데이터를 불러오는 중…</div>;
+
   return <div style={{fontFamily:'-apple-system,BlinkMacSystemFont,"Noto Sans KR",sans-serif',color:'#52405f',background:'#fbf8fd',padding:'16px 12px 90px',maxWidth:740,margin:'auto',minHeight:480}}>
     <style>{`@keyframes bwFade {from{opacity:0}to{opacity:1}} .bw-card button:active{transform:scale(.96)} .bw-input:focus{outline:2px solid #c3a4df}`}</style>
+    {!cloudReady&&!cloudError&&<p aria-live="polite" style={{fontSize:12,color:'#9687a0',margin:'3px 0 9px'}}>데이터 연결 중 · 화면은 먼저 표시했어요</p>}
     {cloudError&&<div role="alert" style={{padding:12,color:'#ad3865'}}>{cloudError}</div>}
     <h2 style={{margin:'4px 0 17px',fontSize:23}}>맨몸근력</h2>
+    <div style={{pointerEvents:cloudReady?'auto':'none',opacity:cloudReady?1:0.65}} aria-busy={!cloudReady}>
     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:18}}>{[['sequence','시퀀스'],['library','운동 라이브러리'],['bookmarks','북마크']].map(([key,name])=><button key={key} onClick={()=>setTab(key)} style={{...btn,background:tab===key?'#e7dcf1':'#fff',minHeight:62,fontWeight:600}}>{name}</button>)}</div>
     {tab==='library' && <>
       <div style={{display:'flex',gap:8,marginBottom:10}}><select style={field} value={major} onChange={e=>{setMajor(e.target.value);setMinor(STRUCTURE[e.target.value][0]);setActiveTag('전체');}}>{Object.keys(STRUCTURE).map(x=><option key={x}>{x}</option>)}</select><select style={field} value={minor} onChange={e=>{setMinor(e.target.value);setActiveTag('전체');}}>{STRUCTURE[major].map(x=><option key={x}>{x}</option>)}</select></div>
@@ -223,5 +243,6 @@ export default function BodyweightStudio({ NatureSounds = null }) {
       </div>
     </div>}
     {current&&<div role="dialog" aria-modal="true" aria-label="맨몸근력 시퀀스 재생" style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(38,28,49,.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:16,animation:'bwFade .2s'}}><div style={{...card,maxWidth:450,width:'100%',maxHeight:'95vh',overflowY:'auto',padding:20,borderRadius:25}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:15}}><b>맨몸근력 시퀀스 재생 · {playIndex+1}/{draft.length}</b><button onClick={stop} style={{...btn,background:'white'}}>✕</button></div><div style={{height:240,background:'#f8f4fb',borderRadius:15,overflow:'hidden',display:'grid',placeItems:'center'}}>{current.image?<img src={current.image} alt={current.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>:<span>등록한 운동 사진이 여기에 표시돼</span>}</div><h2 style={{textAlign:'center',margin:'16px 0 8px'}}>{current.name}</h2><div style={{fontSize:62,fontWeight:700,textAlign:'center',fontVariantNumeric:'tabular-nums'}}>{secs(remain)}</div><p style={{textAlign:'center',color:'#9687a0',fontSize:13}}>남은 시간 · 한국어 음성 안내</p><label style={{display:'flex',gap:6,justifyContent:'center',fontSize:13,marginBottom:12}}><input type="checkbox" checked={voice} onChange={e=>setVoice(e.target.checked)}/> 한국어 음성 안내</label><div style={{display:'flex',justifyContent:'center',gap:6,flexWrap:'wrap'}}><button style={btn} disabled={playIndex===0} onClick={()=>go(playIndex-1)}>◀ 이전</button><button style={btn} onClick={()=>{setPaused(v=>!v);speechSynthesis?.cancel?.();}}>{paused?'▶ 재개':'Ⅱ 일시정지'}</button><button style={btn} onClick={()=>go(playIndex+1)}>다음 ▶</button><button style={btn} onClick={stop}>종료</button></div><div style={{borderTop:'1px solid #e6dcee',marginTop:16,paddingTop:14}}><b>자연의 소리</b>{NatureSounds?<div style={{marginTop:8}}><NatureSounds/></div>:<p style={{fontSize:12,color:'#9d8aaa'}}>기존 Mind Flow 자연음 플레이어를 연결할 자리입니다. 기존 사운드를 유지하려면 NatureSounds 속성으로 전달하세요.</p>}</div></div></div>}
+    </div>
   </div>;
 }

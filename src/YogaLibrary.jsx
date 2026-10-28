@@ -3,6 +3,8 @@ import {Search,Plus,ChevronUp,ChevronDown,Trash2,X,BookOpen,Save,Image as ImageI
 import yogaData from './data/yoga-poses.json';
 import ActivityStudio from './ActivityStudio';
 import MassageLibrary from './MassageLibrary';
+import BodyweightStudio from './BodyweightStudio';
+import PelvicStudio from './PelvicStudio';
 import NatureSound from './NatureSound';
 import {yogaSupabase,YOGA_BUCKET,photoPath,signedYogaPhotos} from './supabaseYoga';
 
@@ -342,6 +344,10 @@ const MIND_FLOW_ACTIVITIES = [
   {name:'스트레칭', en:'STRETCHING', icon:'✨'},
   {name:'폼롤러', en:'FOAM ROLLER', icon:'🪷'},
   {name:'마사지', en:'MASSAGE', icon:'💆‍♀️'},
+  {name:'맨몸근력', en:'BODYWEIGHT', icon:'💪'},
+  {name:'덤벨', en:'DUMBBELL', icon:'🏋️'},
+  {name:'바벨', en:'BARBELL', icon:'🏋️‍♀️'},
+  {name:'머신', en:'MACHINE', icon:'⚙️'},
   {name:'통합 라이브러리', en:'ALL MOVEMENTS & PRESETS', icon:'🔎'},
 ];
 
@@ -357,7 +363,10 @@ export default function YogaLibrary(){
   if(activity)return (
     <div>
       <button type="button" onClick={()=>setActivity(null)} style={{display:'inline-flex',alignItems:'center',gap:7,margin:'4px 0 14px',padding:'10px 15px',border:'1px solid #e7ddec',borderRadius:12,background:'#fff',color:'#775a8f',fontWeight:700,cursor:'pointer'}}>‹ 전체 운동</button>
-      {activity==='마사지'?<MassageLibrary/>:<ActivityStudio activity={activity}/>}
+      {activity==='마사지' ? <MassageLibrary/>
+        : activity==='골반순환' ? <PelvicStudio/>
+        : activity==='맨몸근력' ? <BodyweightStudio/>
+        : <ActivityStudio activity={activity}/>}
       <NatureSound />
     </div>
   );

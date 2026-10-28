@@ -7,21 +7,32 @@ export async function studioUser(){
   if(!data?.user)throw new Error('먼저 Mind Flow에 로그인해 주세요.');
   return data.user;
 }
-export async function loadStudio(studio){
+// Load metadata first. Photo URLs are hydrated independently so they never block the screen.
+export async function loadStudio(studio,onPhotos){
   const user=await studioUser();
-  const {data,error}=await supabase.from('mindflow_studio_data').select('data').eq('user_id',user.id).eq('studio',studio).maybeSingle();
+  const {data,error}=await supabase.from('mindflow_studio_data')
+    .select('data').eq('user_id',user.id).eq('studio',studio).maybeSingle();
   if(error)throw error;
   const record=data?.data||{};
+  const normalized={...record,exercises:record.exercises||[],saved:record.saved||[]};
   const paths=new Set();
-  (record.exercises||[]).forEach(x=>{if(x.imagePath)paths.add(x.imagePath)});
-  (record.saved||[]).forEach(s=>(s.items||[]).forEach(x=>{if(x.imagePath)paths.add(x.imagePath)}));
-  const urls={};
-  await Promise.all([...paths].map(async path=>{
-    const {data:signed,error:e}=await supabase.storage.from(BUCKET).createSignedUrl(path,60*60*24);
-    if(!e&&signed?.signedUrl)urls[path]=signed.signedUrl;
+  normalized.exercises.forEach(x=>{if(x.imagePath)paths.add(x.imagePath)});
+  normalized.saved.forEach(s=>(s.items||[]).forEach(x=>{if(x.imagePath)paths.add(x.imagePath)}));
+  if(typeof onPhotos==='function'){
+    // Never delay the initial screen for Storage signing requests.
+    void Promise.all([...paths].map(async path=>{
+      const {data:signed,error:e}=await supabase.storage.from(BUCKET).createSignedUrl(path,86400);
+      return [path,!e?signed?.signedUrl||'':''];
+    })).then(entries=>onPhotos(Object.fromEntries(entries))).catch(()=>{});
+    return normalized;
+  }
+  const entries=await Promise.all([...paths].map(async path=>{
+    const {data:signed,error:e}=await supabase.storage.from(BUCKET).createSignedUrl(path,86400);
+    return [path,!e?signed?.signedUrl||'':''];
   }));
+  const urls=Object.fromEntries(entries);
   const withImage=x=>({...x,image:x.imagePath?(urls[x.imagePath]||''):''});
-  return {...record,exercises:(record.exercises||[]).map(withImage),saved:(record.saved||[]).map(s=>({...s,items:(s.items||[]).map(withImage)}))};
+  return {...normalized,exercises:normalized.exercises.map(withImage),saved:normalized.saved.map(s=>({...s,items:(s.items||[]).map(withImage)}))};
 }
 export async function saveStudio(studio,record){
   const user=await studioUser();
