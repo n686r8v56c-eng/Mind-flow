@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import FoamRollerLibrary from './FoamRollerLibrary';
+import SNPEStudio from './SNPEStudio';
 import {Search,Plus,Save,Trash2,Pencil,ChevronUp,ChevronDown,Image as ImageIcon,Play,Pause,X} from 'lucide-react';
 import yogaData from './data/yoga-poses.json';
 import {PILATES_GROUPS,PILATES_CLASSICAL_34} from './pilatesSeed';
@@ -118,5 +119,7 @@ function ActivityStudioCore({activity}){
 
 // Foam roller has its own editable movement library; keep all other activities unchanged.
 export default function ActivityStudio(props){
- return props.activity==='폼롤러'? <FoamRollerLibrary/> : <ActivityStudioCore {...props}/>;
+ if(props.activity==='SNPE')return <SNPEStudio/>;
+ if(props.activity==='폼롤러')return <FoamRollerLibrary/>;
+ return <ActivityStudioCore {...props}/>;
 }
