@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import FoamRollerLibrary from './FoamRollerLibrary';
 import {Search,Plus,Save,Trash2,Pencil,ChevronUp,ChevronDown,Image as ImageIcon,Play,Pause,X} from 'lucide-react';
 import yogaData from './data/yoga-poses.json';
 import {PILATES_GROUPS,PILATES_CLASSICAL_34} from './pilatesSeed';
@@ -31,7 +32,7 @@ function yogaPresets(){const poses=yogaData.poses||[];const built=BASE.map(p=>({
 function encodeTags(text){return [...new Set(text.split(/[,，#\n]/).map(x=>x.trim()).filter(Boolean))];}
 function usePhotoUrls(moves,user){const [urls,setUrls]=useState({});useEffect(()=>{let alive=true;const paths=moves.filter(x=>x.image_path).map(x=>x.image_path);if(!paths.length){setUrls({});return;}Promise.all(paths.map(async path=>{const {data,error}=await yogaSupabase.storage.from(YOGA_BUCKET).createSignedUrl(path,3600);return [path,error?'':data.signedUrl]})).then(rows=>{if(alive)setUrls(Object.fromEntries(rows))}).catch(()=>{});return()=>{alive=false}},[moves,user]);return urls;}
 
-export default function ActivityStudio({activity}){
+function ActivityStudioCore({activity}){
  const allMode=activity==='통합 라이브러리';const [uid,setUid]=useState('');const [moves,setMoves]=useState([]);const [presets,setPresets]=useState([]);const [seqs,setSeqs]=useState([]);const [err,setErr]=useState('');const [busy,setBusy]=useState(false);const [view,setView]=useState('library');const [filter,setFilter]=useState('전체');const [kind,setKind]=useState('전체');const [search,setSearch]=useState('');const [editing,setEditing]=useState(null);const [draft,setDraft]=useState([]);const [sequenceName,setSequenceName]=useState('');const [bpm,setBpm]=useState(30);const [lang,setLang]=useState('zh');const [player,setPlayer]=useState(null);const [isPlaying,setIsPlaying]=useState(false);const [beat,setBeat]=useState(0);const [photo,setPhoto]=useState(null);const [yogaUrls,setYogaUrls]=useState({});const [status,setStatus]=useState('');const [groupFilter,setGroupFilter]=useState('전체');const file=useRef();
  const refresh=useCallback(async user=>{const who=user||uid;if(!who||!yogaSupabase)return;const [a,b,c]=await Promise.all([yogaSupabase.from(MOVE_TABLE).select('*').eq('user_id',who).order('created_at',{ascending:false}),yogaSupabase.from(PRESET_TABLE).select('*').eq('user_id',who).order('created_at',{ascending:false}),yogaSupabase.from(SEQ_TABLE).select('*').eq('user_id',who).order('created_at',{ascending:false})]);const fail=a.error||b.error||c.error;if(fail)throw fail;setMoves(a.data||[]);setPresets(b.data||[]);setSeqs(c.data||[]);},[uid]);
  useEffect(()=>{let active=true;if(!yogaSupabase){setErr('Supabase 환경 변수를 확인해 주세요.');return;}yogaSupabase.auth.getUser().then(async({data,error})=>{if(!active)return;if(error||!data.user){setErr('로그인이 필요해요.');return;}setUid(data.user.id);try{await refresh(data.user.id)}catch(e){if(active)setErr('먼저 제공된 SQL을 Supabase SQL Editor에서 실행해 주세요. '+e.message)}});return()=>{active=false};},[]);
@@ -113,4 +114,9 @@ export default function ActivityStudio({activity}){
  {view==='saved'&&<><h3>내 프리셋</h3>{rows(presets.filter(x=>allMode||x.activity===activity),PRESET_TABLE)}<h3>내 시퀀스</h3>{rows(seqs.filter(x=>allMode||x.activity===activity),SEQ_TABLE)}</>}
  {player!==null&&draft[player]&&<div style={{position:'fixed',inset:0,background:'#0008',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{background:'white',borderRadius:18,padding:20,width:'min(100%,410px)',textAlign:'center'}}><h3>{draft[player].name}</h3><p style={STYLE.small}>{draft[player].activity} · {player+1}/{draft.length}</p><div style={{fontSize:34,margin:25}}>{beat} / {draft[player].beats||8}</div><div style={{display:'flex',justifyContent:'center',gap:7}}><button style={STYLE.btn} disabled={player===0} onClick={()=>{setPlayer(x=>Math.max(0,x-1));setBeat(0)}}>이전</button><button style={STYLE.btn} onClick={()=>setIsPlaying(x=>!x)}>{isPlaying?'일시정지':'계속'}</button><button style={STYLE.btn} onClick={()=>{if(player+1>=draft.length){setPlayer(null);setIsPlaying(false)}else{setPlayer(x=>x+1);setBeat(0)}}}>다음</button></div><button style={{...STYLE.btn,marginTop:12}} onClick={()=>{setPlayer(null);setIsPlaying(false);window.speechSynthesis?.cancel()}}>종료</button></div></div>}
  </div>;
+}
+
+// Foam roller has its own editable movement library; keep all other activities unchanged.
+export default function ActivityStudio(props){
+ return props.activity==='폼롤러'? <FoamRollerLibrary/> : <ActivityStudioCore {...props}/>;
 }
