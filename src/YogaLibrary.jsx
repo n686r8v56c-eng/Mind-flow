@@ -2,6 +2,8 @@ import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {Search,Plus,ChevronUp,ChevronDown,Trash2,X,BookOpen,Save,Image as ImageIcon,Upload,Camera} from 'lucide-react';
 import yogaData from './data/yoga-poses.json';
 import ActivityStudio from './ActivityStudio';
+import MassageLibrary from './MassageLibrary';
+import NatureSound from './NatureSound';
 import {yogaSupabase,YOGA_BUCKET,photoPath,signedYogaPhotos} from './supabaseYoga';
 
 const PRIMARY=['스탠딩','전굴','후굴','힙 오프너','트위스트','암 밸런스','코어','척추 움직임','회복·휴식'];
@@ -334,12 +336,14 @@ export default function YogaLibrary(){
     <div>
       <button type="button" onClick={()=>setActivity(null)} style={{display:'inline-flex',alignItems:'center',gap:7,margin:'4px 0 14px',padding:'10px 15px',border:'1px solid #e7ddec',borderRadius:12,background:'#fff',color:'#775a8f',fontWeight:700,cursor:'pointer'}}>‹ 전체 운동</button>
       <YogaContent />
+      <NatureSound />
     </div>
   );
   if(activity)return (
     <div>
       <button type="button" onClick={()=>setActivity(null)} style={{display:'inline-flex',alignItems:'center',gap:7,margin:'4px 0 14px',padding:'10px 15px',border:'1px solid #e7ddec',borderRadius:12,background:'#fff',color:'#775a8f',fontWeight:700,cursor:'pointer'}}>‹ 전체 운동</button>
-      <ActivityStudio activity={activity}/>
+      {activity==='마사지'?<MassageLibrary/>:<ActivityStudio activity={activity}/>}
+      <NatureSound />
     </div>
   );
   return (
