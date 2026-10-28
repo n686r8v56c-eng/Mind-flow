@@ -39,11 +39,39 @@ export default function ActivityStudio({activity}){
  const photos=usePhotoUrls(moves,uid);
  const yogaItems=useMemo(()=>allMode?yogaMoves():[],[allMode]);
  const library=useMemo(()=>[...moves.filter(m=>allMode||m.activity===activity).map(toLibraryItem),...yogaItems], [moves,activity,allMode,yogaItems]);
- const presetItems=useMemo(()=>[...presets.filter(p=>allMode||p.activity===activity).map(p=>({kind:'preset',id:p.id,activity:p.activity,name:p.name,tags:p.tags||[],items:p.items||[],source:'activity'})),...(allMode?yogaPresets():[])],[presets,activity,allMode]);
+ const presetItems=useMemo(()=>[...presets.filter(p=>allMode||p.activity===activity).map(p=>({kind:'preset',id:p.id,activity:p.activity,name:p.name,group:(p.tags||[])[0]||'',tags:p.tags||[],items:p.items||[],source:'activity'})),...(allMode?yogaPresets():[])],[presets,activity,allMode]);
  const matches=(x)=>{const q=search.trim().toLocaleLowerCase();return (allMode&&(filter!=='전체'&&x.activity!==filter)?false:true)&&(kind==='전체'||kind===x.kind)&&(!q||[x.name,x.activity,x.group,x.description,...(x.tags||[])].filter(Boolean).join(' ').toLocaleLowerCase().includes(q));};
  const results=[...library,...presetItems].filter(x=>matches(x)&&(groupFilter==='전체'||!['매트 필라테스','스트레칭'].includes(activity)||x.group===groupFilter));
  const importClassical=async()=>{if(!uid||busy)return;const existing=new Set(moves.filter(m=>m.activity==='매트 필라테스').map(m=>m.name.trim().toLocaleLowerCase()));const missing=PILATES_CLASSICAL_34.filter(m=>!existing.has(m.name.toLocaleLowerCase()));if(!missing.length){setStatus('클래식 34개가 모두 등록되어 있어요. 기존 사진과 메모는 유지했어요.');return;}if(!window.confirm(`클래식 동작 ${missing.length}개를 추가할까요? 이미 등록한 동작은 수정하지 않아요.`))return;setBusy(true);setErr('');try{const rows=missing.map(m=>({user_id:uid,activity:'매트 필라테스',name:m.name,group_name:m.group_name,tags:m.tags,notes:m.notes,beats:m.beats,side:m.side}));const {error}=await yogaSupabase.from(MOVE_TABLE).insert(rows);if(error)throw error;await refresh();setStatus(`클래식 동작 ${missing.length}개 등록 완료! 이제 사진을 하나씩 올려봐 💜`)}catch(e){setErr('등록 실패: '+e.message)}finally{setBusy(false)}};
  const importStretchBook=async()=>{if(!uid||busy)return;const existing=new Set(moves.filter(m=>m.activity==='스트레칭').map(m=>m.name.trim().toLocaleLowerCase()));const missing=STRETCH_BOOK_ITEMS.filter(m=>!existing.has(m.name.toLocaleLowerCase()));if(!missing.length){setStatus('현재 제공된 책 목차 동작이 모두 등록되어 있어요. 기존 사진과 메모는 유지했어요.');return;}if(!window.confirm(`책 목차 동작 ${missing.length}개를 추가할까요? 기존 동작은 덮어쓰지 않아요.`))return;setBusy(true);setErr('');try{const rows=missing.map(m=>({user_id:uid,activity:'스트레칭',name:m.name,group_name:m.group_name,tags:m.tags,notes:m.notes,beats:m.beats,side:m.side}));const {error}=await yogaSupabase.from(MOVE_TABLE).insert(rows);if(error)throw error;await refresh();setStatus(`스트레칭 ${missing.length}개 추가 완료! 사진은 동작 수정에서 올려줘 💜`)}catch(e){setErr('등록 실패: '+e.message)}finally{setBusy(false)}};
+ const createGroupPresets=async()=>{
+  if(!uid||busy||!['매트 필라테스','스트레칭'].includes(activity))return;
+  const groups=activity==='매트 필라테스'?PILATES_GROUPS:STRETCH_GROUPS;
+  const source=activity==='매트 필라테스'?PILATES_CLASSICAL_34:STRETCH_BOOK_ITEMS;
+  const registered=moves.filter(m=>m.activity===activity);
+  if(!registered.length){setErr('먼저 동작 목록을 불러와 주세요.');return;}
+  const byName=new Map(registered.map(m=>[m.name.trim().toLocaleLowerCase(),m]));
+  const existingNames=new Set(presets.filter(p=>p.activity===activity).map(p=>p.name.trim().toLocaleLowerCase()));
+  const rows=[];
+  for(const group of groups){
+    const name=`${group} · 기본 프리셋`;
+    if(existingNames.has(name.toLocaleLowerCase()))continue;
+    const items=source.filter(s=>s.group_name===group).map(s=>byName.get(s.name.trim().toLocaleLowerCase())).filter(Boolean).map(m=>({id:m.id,kind:'move',name:activity==='스트레칭'?displayName(toLibraryItem(m)):m.name,activity,beats:m.beats||8,side:m.side||'기본',image_path:m.image_path||null}));
+    if(items.length)rows.push({user_id:uid,activity,name,tags:[group],items});
+  }
+  if(!rows.length){setStatus('부위별 프리셋이 이미 등록되어 있어요.');return;}
+  if(!window.confirm(`${activity} 대분류별 프리셋 ${rows.length}개를 만들까요? 기존 프리셋은 건드리지 않아요.`))return;
+  setBusy(true);setErr('');
+  try{
+    // If a previous partial attempt succeeded, recheck names before adding anything.
+    const {data:latest,error:readError}=await yogaSupabase.from(PRESET_TABLE).select('name').eq('user_id',uid).eq('activity',activity);
+    if(readError)throw readError;
+    const taken=new Set((latest||[]).map(r=>r.name.trim().toLocaleLowerCase()));
+    const missing=rows.filter(r=>!taken.has(r.name.toLocaleLowerCase()));
+    if(missing.length){const {error}=await yogaSupabase.from(PRESET_TABLE).insert(missing);if(error)throw error;}
+    await refresh();setStatus(`${activity}: ${missing.length}개 프리셋 생성 완료! 검색 또는 저장한 구성에서 확인해 봐 💜`);
+  }catch(e){setErr('프리셋 생성 실패: '+e.message)}finally{setBusy(false)}
+ };
  const findImage=m=>m.id?.startsWith('yoga:')?yogaUrls[m.id.slice(5)]:photos[m.image_path]||'';
  const openMoveEditor=m=>{const raw=moves.find(z=>z.id===m.id);if(!raw)return;setEditing(raw);setPhoto(null);setErr('');};
  const chooseCardPhoto=(m,e)=>{const selected=e.target.files?.[0];if(!selected)return;const raw=moves.find(z=>z.id===m.id);if(!raw)return;setEditing(raw);setPhoto(selected);setErr('');setStatus('사진이 선택됐어요. 아래 ‘동작 저장’을 누르면 Supabase에 저장돼요.');e.target.value='';};
@@ -68,6 +96,7 @@ export default function ActivityStudio({activity}){
  {view==='library'&&<><section style={STYLE.panel}><div style={{display:'flex',alignItems:'center',gap:8}}><Search size={18}/><input style={STYLE.field} value={search} onChange={e=>setSearch(e.target.value)} placeholder="동작명 · 태그 · 프리셋 이름 검색"/></div><div style={{display:'flex',gap:8,marginTop:9}}><select value={kind} onChange={e=>setKind(e.target.value)} style={STYLE.field}><option value="전체">전체</option><option value="move">동작</option><option value="preset">프리셋</option></select>{allMode&&<select value={filter} onChange={e=>setFilter(e.target.value)} style={STYLE.field}><option>전체</option>{TYPES.map(t=><option key={t}>{t}</option>)}</select>}</div>{['매트 필라테스','스트레칭'].includes(activity)&&<select style={{...STYLE.field,marginTop:8}} value={groupFilter} onChange={e=>setGroupFilter(e.target.value)}><option>전체</option>{(activity==='스트레칭'?STRETCH_GROUPS:PILATES_GROUPS).map(g=><option key={g}>{g}</option>)}</select>}</section>
  {activity==='매트 필라테스'&&view==='library'&&<section style={STYLE.panel}><b>클래식 매트 필라테스 · 34개 동작</b><p style={STYLE.small}>8개 대분류에 자동 분류해요. 기존 동작·사진·메모는 덮어쓰지 않아요.</p><button disabled={!uid||busy} style={{...STYLE.btn,width:'100%',marginTop:8}} onClick={importClassical}>{busy?'등록 중…':'클래식 34개 동작 불러오기'}</button></section>}
  {activity==='스트레칭'&&view==='library'&&<section style={STYLE.panel}><b>스트레칭 도서 목차 · 총 135개 동작</b><p style={STYLE.small}>12개 부위별 대분류. 기존 동작과 사진을 덮어쓰지 않아요. 추가 목차는 나중에 이어서 등록할 수 있어요.</p><button disabled={!uid||busy} style={{...STYLE.btn,width:'100%',marginTop:8}} onClick={importStretchBook}>{busy?'등록 중…':'책 목차 135개 동작 불러오기'}</button></section>}
+ {['매트 필라테스','스트레칭'].includes(activity)&&view==='library'&&<section style={STYLE.panel}><b>{activity==='스트레칭'?'부위별 12개 프리셋':'대분류별 8개 프리셋'}</b><p style={STYLE.small}>등록된 동작을 분류별로 묶어 저장해요. 기존 사진과 동작은 수정되지 않으며, 이미 만든 같은 이름의 프리셋은 건너뛰어요.</p><button disabled={!uid||busy} style={{...STYLE.btn,width:'100%',marginTop:8}} onClick={createGroupPresets}>{busy?'저장 중…':'분류별 기본 프리셋 만들기'}</button></section>}
  {!allMode&&<button style={{...STYLE.btn,width:'100%',marginBottom:12}} onClick={()=>{setEditing({});setPhoto(null)}}><Plus size={16} style={{verticalAlign:'middle'}}/> 새 동작 등록</button>}
  {editor&&<form onSubmit={saveMove} style={STYLE.panel}><h3>{editing.id?'동작 수정 / 사진 저장':'새 동작 등록'}</h3>{photo&&<p style={{...STYLE.small,color:'#72548a'}}>선택한 사진: {photo.name} — 아래 저장을 눌러야 업로드돼요.</p>}<label>동작 이름 *<input required name="name" defaultValue={editing.name||''} style={STYLE.field} placeholder="예: 숄더 브릿지"/></label><label>대분류 (자유 입력)<input name="group" list="activity-groups" defaultValue={editing.group_name||''} style={STYLE.field} placeholder="예: 골반 안정화"/></label>{['매트 필라테스','스트레칭'].includes(activity)&&<datalist id="activity-groups">{(activity==='스트레칭'?STRETCH_GROUPS:PILATES_GROUPS).map(g=><option key={g} value={g}/>)}</datalist>}<label>태그 (쉼표로 구분)<input name="tags" defaultValue={(editing.tags||[]).join(', ')} style={STYLE.field} placeholder="골반, 둔근, 코어, 초급"/></label><label>메모<textarea name="notes" defaultValue={editing.notes||''} rows={3} style={STYLE.field}/></label><div style={{display:'flex',gap:8}}><label style={{flex:1}}>기본 박자<input name="beats" type="number" min="1" max="999" defaultValue={editing.beats||8} style={STYLE.field}/></label><label style={{flex:1}}>좌우<select name="side" defaultValue={editing.side||'기본'} style={STYLE.field}>{['기본','양쪽','왼쪽','오른쪽'].map(t=><option key={t}>{t}</option>)}</select></label></div><label>사진 업로드 / 변경<input ref={file} type="file" accept="image/*" onChange={e=>setPhoto(e.target.files?.[0]||null)} style={STYLE.field}/></label><p style={STYLE.small}>사진을 교체해도 이전 파일은 자동 삭제하지 않아요.</p><div style={{display:'flex',gap:9,marginTop:10}}><button type="submit" disabled={busy} style={STYLE.btn}><Save size={15}/> {busy?'저장 중…':'동작 저장'}</button><button type="button" style={STYLE.btn} onClick={()=>{setEditing(null);setPhoto(null)}}>취소</button></div></form>}
  <p style={STYLE.small}>검색 결과 {results.length}개 {allMode?'· 요가 기존 데이터 포함':''}</p>
