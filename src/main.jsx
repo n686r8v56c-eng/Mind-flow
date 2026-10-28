@@ -218,6 +218,37 @@ function StudioSoundMixer({clips=[]}){
    <p className="micro">여러 소리를 동시에 선택할 수 있어요. 각 소리는 반복 재생돼요.</p>
  </div>;
 }
+// Extend the existing YogaLibrary activity card grid without replacing its data or layout.
+function AdditionalActivityCards({onSelect}){
+ const host=useRef(null);
+ useEffect(()=>{
+  const root=document.getElementById('mindflow-activity-cards-root');
+  if(!root)return;
+  const buttons=Array.from(root.querySelectorAll('button'));
+  const snpe=buttons.find(b=>b.textContent?.trim().startsWith('SNPE'));
+  if(!snpe)return;
+  const grid=snpe.parentElement;
+  const cards=[['맨몸근력','BODYWEIGHT','💪'],['덤벨','DUMBBELL','🏋️'],['머신','MACHINE','⚙️'],['바벨','BARBELL','🏋️‍♀️']];
+  const added=[];
+  const all=Array.from(grid.children);
+  const last=all.find(e=>e.textContent?.includes('통합 라이브러리'));
+  for(const [name,english,emoji] of cards){
+   if(all.some(e=>e.textContent?.includes(name)))continue;
+   const card=snpe.cloneNode(true);
+   card.removeAttribute('aria-selected');
+   card.setAttribute('aria-label',name);
+   card.style.background='#faf7fc';
+   if(card.children.length>=3){card.children[0].textContent=emoji;card.children[1].textContent=name;card.children[2].textContent=english}
+   else card.textContent=`${emoji} ${name}`;
+   card.addEventListener('click',()=>onSelect(name));
+   grid.insertBefore(card,last||null);
+   added.push(card);
+  }
+  return()=>{added.forEach(c=>c.remove())};
+ },[onSelect]);
+ return null;
+}
+
 function App(){const [activityMode,setActivityMode]=useState('요가');const [tab,setTab]=useState('홈'),[data,save]=usePersist(),[clips,setClips]=useState([]),[soundCategory,setSoundCategory]=useState('물소리'),[uploadCategory,setUploadCategory]=useState('물소리'),[busy,setBusy]=useState(false),[playing,setPlaying]=useState(false),[paused,setPaused]=useState(false),[remaining,setRemaining]=useState(1200),[duration,setDuration]=useState(data.selectedMinutes||20),[unlimited,setUnlimited]=useState(false),[elapsed,setElapsed]=useState(0),[fade,setFade]=useState(true),[bell,setBell]=useState(true),[selectedDate,setSelectedDate]=useState(today()),[viewMonth,setViewMonth]=useState(new Date()),[folder,setFolder]=useState('전체'),[q,setQ]=useState(''),[currentVideo,setCurrentVideo]=useState(null),[videoError,setVideoError]=useState(false),[breathMode,setBreathMode]=useState('편안한 호흡'),[breathRunning,setBreathRunning]=useState(false),[breathSec,setBreathSec]=useState(0),[breathTotal,setBreathTotal]=useState(5),[showSettings,setShowSettings]=useState(false);const players=useRef({}),urlRefs=useRef({}),endAt=useRef(0),remainingAtPause=useRef(0),timerStart=useRef(0),startTimestamp=useRef(0),sessionRecorded=useRef(false);const [volumes,setVolumes]=useState(data.volumes||{});
  const [recordSections,setRecordSections]=useState({breath:true,meditation:true,mantra:true});
  const sessionsRef=useRef(data.sessions);sessionsRef.current=data.sessions;
@@ -255,12 +286,22 @@ const renderCalendar=()=>{let y=viewMonth.getFullYear(),m=viewMonth.getMonth(),f
 return <div className="shell"><header><div className="brand"><span className="mark">✦</span><span>MIND FLOW</span></div><button className="iconbtn" onClick={()=>setShowSettings(!showSettings)} aria-label="설정"><Settings size={21}/></button></header>{showSettings&&<div className="notice"><b>앱 사용 안내</b><p>이 버전은 로그인 없는 로컬 체험판이야. 음원·영상·기록은 현재 브라우저에 저장되고 기기 간 동기화되지 않아.</p><p>화면 잠금·백그라운드 믹서 재생, 정확한 자동 종료는 iOS Safari에서 보장되지 않아. 나중에 네이티브 오디오로 별도 테스트해야 해.</p><button className="secondary" onClick={()=>setShowSettings(false)}>닫기</button></div>}
 <main>
 {tab==='홈'&&<><section className="hero"><div className="eyebrow">YOUR DAILY STILLNESS</div><h1>오늘도, 나에게<br/>집중하는 시간</h1><p>하루하루 쌓이는 고요한 수행을 기록해요.</p><div className="hero-orb">☾</div><button className="hero-button" onClick={()=>setTab('명상')}>나만의 명상 시작 <ChevronRight size={17}/></button></section><section className="home-calm-stats"><h2>오늘의 수행</h2><div className="home-calm-summary">{[['호흡',weeklyStats[6].breath,'회'],['명상',weeklyStats[6].meditation,'분'],['만트라',weeklyStats[6].mantra,'개']].map(([name,value,unit])=><div key={name}><span>{name}</span><strong>{value}<small>{unit}</small></strong></div>)}</div></section><div className="home-calm-charts"><h2>최근 7일</h2>{[['호흡 횟수','breath','회'],['명상 시간','meditation','분'],['만트라 영상','mantra','개']].map(([label,field,unit])=>{const values=weeklyStats.map(x=>x[field]);const highest=Math.max(1,...values);const sum=values.reduce((a,b)=>a+b,0);return <section className="home-calm-chart" key={field}><div className="home-calm-heading"><b>{label}</b><span>{sum}{unit}</span></div><div className="home-calm-bars">{weeklyStats.map((d,i)=><div className="home-calm-day" key={d.date}><div className="home-calm-column"><div className="home-calm-bar" style={{height:`${d[field]===0?0:Math.max(8,d[field]/highest*100)}%`}} title={`${d.date}: ${d[field]}${unit}`}/></div><span>{d.day}</span></div>)}</div></section>})}<p className="home-calm-note">저장된 수행 기록 기준 · 숫자가 없는 날은 0으로 표시돼요.</p></div><h2>오늘은 어떤 시간이 필요해?</h2><div className="quickgrid"><button onClick={()=>setTab('호흡')}><Wind/><b>호흡 훈련</b><span>천천히 들이쉬고 내쉬기</span></button><button onClick={()=>setTab('명상')}><Flower2/><b>자연음 명상</b><span>나만의 사운드 믹서</span></button><button onClick={()=>setTab('만트라')}><Music2/><b>만트라</b><span>저장한 영상 만나기</span></button><button onClick={()=>setTab('기록')}><CalendarDays/><b>명상 기록</b><span>고요했던 시간 모아보기</span></button></div></>}
-{tab==='요가'&&<>
- <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:7,marginBottom:18}}>
-  {['요가','맨몸근력','골반순환'].map(mode=><button type="button" key={mode} onClick={()=>setActivityMode(mode)} style={{padding:'13px 4px',minWidth:0,border:'1px solid #e4d5ec',borderRadius:14,background:activityMode===mode?'#e7dbf0':'#fff',color:'#765b92',fontWeight:700,fontSize:13}}>{mode}</button>)}
- </div>
- {activityMode==='요가'?<YogaLibrary/>:activityMode==='맨몸근력'?<BodyweightStudio NatureSounds={StudioNatureSounds}/>:<PelvicStudio NatureSounds={StudioNatureSounds}/>}
- </>}
+{tab==='요가'&&(activityMode==='요가'
+ ? <div id="mindflow-activity-cards-root" onClickCapture={(event)=>{
+     const btn=event.target.closest?.('button');
+     if(!btn || !event.currentTarget.contains(btn))return;
+     const name=(btn.innerText||btn.textContent||'').replace(/\s+/g,' ').trim();
+     if(name.includes('골반순환')){
+       event.preventDefault();event.stopPropagation();setActivityMode('골반순환');window.scrollTo({top:0,behavior:'smooth'});
+     }
+   }}><YogaLibrary/><AdditionalActivityCards onSelect={setActivityMode}/></div>
+ : <div>
+     <button type="button" className="secondary" onClick={()=>{setActivityMode('요가');window.scrollTo({top:0,behavior:'smooth'})}} style={{marginBottom:18}}>‹ 전체 운동</button>
+     {activityMode==='맨몸근력'?<BodyweightStudio NatureSounds={StudioNatureSounds}/>:
+      activityMode==='골반순환'?<PelvicStudio NatureSounds={StudioNatureSounds}/>:
+      <section className="panel" style={{textAlign:'center',padding:28}}><h2>{activityMode}</h2><p className="muted">운동 라이브러리 준비 중이에요.</p></section>}
+   </div>
+)}
 {tab==='명상'&&<><div className="page-heading"><div className="eyebrow">MEDITATION STUDIO</div><h1>나만의 명상실</h1><p>좋아하는 소리를 섞어 나만의 고요를 만들어요.</p></div><section className="panel"><div className="panel-title"><div><h2>자연음 믹서</h2><p>폴더 없이 버튼으로 선택 · 여러 소리 동시 재생</p></div></div>
 <div className="sound-category-grid">{soundCategories.map(([name,emoji])=>{const matches=clips.filter(c=>(c.category||guessCategory(c.name))===name);const active=matches.some(c=>(volumes[c.id]||0)>0);return <button type="button" key={name} className={`sound-category-button ${soundCategory===name?'chosen':''} ${active?'has-volume':''}`} onClick={()=>toggleCategory(name)}><span className="sound-category-emoji">{emoji}</span><span className="sound-category-label">{name}</span>{matches.length>0&&<span className="sound-category-count">{matches.length}</span>}{active&&<span className="sound-category-active" aria-label="볼륨 켜짐"/>}</button>})}</div>
 <div className="sound-category-detail"><div className="sound-category-heading"><h3>{soundCategories.find(x=>x[0]===soundCategory)?.[1]} {soundCategory}</h3><span>{clips.filter(c=>(c.category||guessCategory(c.name))===soundCategory).length}개 음원</span></div>
