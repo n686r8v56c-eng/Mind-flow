@@ -79,7 +79,7 @@ export default function YogaLibrary(){
   const [view,setView]=useState('library');
   const [presetCategory,setPresetCategory]=useState('스탠딩');
   const [customPresets,setCustomPresets]=useState(readCustomPresets);
-  const [bpm,setBpm]=useState(60);
+  const [bpm,setBpm]=useState(30);
   const [countLanguage,setCountLanguage]=useState('zh');
   const [player,setPlayer]=useState(null);
   const [playing,setPlaying]=useState(false);
@@ -236,9 +236,9 @@ export default function YogaLibrary(){
     window.speechSynthesis.speak(utter);
     return()=>{cancelled=true;clearTimeout(fallback);window.speechSynthesis.cancel()};
   },[player?.index,playing,player?.steps]);
-  useEffect(()=>{if(!player||!playing||!introDone)return;const duration=60000/bpm;
+  useEffect(()=>{if(!player||!playing||!introDone||bpm===0)return;const duration=60000/bpm;
     const timer=setTimeout(()=>{const number=player.beat+1;
-      if('speechSynthesis' in window){const ko=['하나','둘','셋','넷','다섯','여섯','일곱','여덟'];const zh=['一','二','三','四','五','六','七','八'];const raw=(countLanguage==='zh'?zh:ko)[(number-1)%8];const count=new SpeechSynthesisUtterance(raw);count.lang=countLanguage==='zh'?'zh-CN':'ko-KR';count.rate=1.5;window.speechSynthesis.speak(count)}
+      if('speechSynthesis' in window){const ko=['하나','둘','셋','넷','다섯','여섯','일곱','여덟'];const zh=['一','二','三','四','五','六','七','八'];const raw=(countLanguage==='zh'?zh:ko)[(number-1)%8];const count=new SpeechSynthesisUtterance(raw);count.lang=countLanguage==='zh'?'zh-CN':'ko-KR';count.rate=0.85;window.speechSynthesis.speak(count)}
       const step=player.steps[player.index];if(number>=step.beats){if(player.index+1>=player.steps.length){setPlaying(false);setPlayer(null)}else{setPlayer(p=>p?{...p,index:p.index+1,beat:0}:null);setIntroDone(false)}}else setPlayer(p=>p?{...p,beat:number}:null)
     },duration);return()=>clearTimeout(timer);
   },[player?.beat,player?.index,playing,introDone,bpm,countLanguage]);
@@ -252,7 +252,7 @@ export default function YogaLibrary(){
   }).sort((a,b)=>(a.nameKo||'').localeCompare(b.nameKo||'','ko')),[poses,category,sub,query]);
   const add=p=>{setDraft(prev=>[...prev,{key:`${Date.now()}-${Math.random().toString(36).slice(2)}`,poseId:p.id,beats:p.defaultBeats||8,side:p.sideMode==='selectable'||p.sideMode==='both'?'양쪽':'기본'}]);};
   const move=(i,delta)=>setDraft(prev=>{const next=[...prev];const j=i+delta;if(j<0||j>=next.length)return prev;[next[i],next[j]]=[next[j],next[i]];return next;});
-  const saveSequence=()=>{if(!draft.length)return;const name=seqName.trim()||'나의 요가 시퀀스';setSaved(prev=>[{id:`seq-${Date.now()}`,name,items:draft.map(x=>({...x})),createdAt:new Date().toISOString()},...prev]);};
+  const saveSequence=()=>{if(!draft.length)return;const name=window.prompt('저장할 시퀀스 이름을 입력해 주세요',seqName.trim()||'')?.trim();if(!name)return;setSeqName(name);setSaved(prev=>[{id:`seq-${Date.now()}`,name,items:draft.map(x=>({...x})),createdAt:new Date().toISOString()},...prev]);setToast(`시퀀스 ‘${name}’ 저장 완료`);};
   const loadSequence=s=>{setDraft(s.items.filter(x=>poses.some(p=>p.id===x.poseId)).map((x,i)=>({...x,key:`load-${Date.now()}-${i}`})));setSeqName(s.name);setView('sequence');};
   const poseById=id=>poses.find(p=>p.id===id);
   return <div className="yoga-library">
@@ -278,10 +278,10 @@ export default function YogaLibrary(){
         <h2>나의 시퀀스</h2><p className="muted">기본·사용자 프리셋을 불러오거나 자세를 자유롭게 조합해요. 원본 프리셋은 바뀌지 않아요.</p>
         <input className="yoga-seq-title" aria-label="시퀀스 이름" value={seqName} onChange={e=>setSeqName(e.target.value)}/>
         {draft.length===0?<div className="yoga-empty">아직 담은 자세가 없어요.<button onClick={()=>setView('library')}>자세 선택하기</button></div>:<div className="yoga-draft-list">{draft.map((item,i)=>{const p=poseById(item.poseId);return p&&<div key={item.key} className="yoga-draft-item"><span className="yoga-order">{i+1}</span><div className="yoga-draft-title"><b>{p.nameKo}</b><small>{p.sanskrit}</small><div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:5}}><select aria-label="좌우 설정" value={item.side||'기본'} onChange={e=>setDraft(prev=>prev.map(x=>x.key===item.key?{...x,side:e.target.value}:x))}>{['기본','양쪽','왼쪽','오른쪽'].map(v=><option key={v}>{v}</option>)}</select><select aria-label="유지 박자" value={item.beats||8} onChange={e=>setDraft(prev=>prev.map(x=>x.key===item.key?{...x,beats:Number(e.target.value)}:x))}>{[4,8,16,24,32,48,64].map(v=><option key={v} value={v}>{v}박</option>)}</select></div></div><div className="yoga-draft-actions"><button aria-label="위로" disabled={i===0} onClick={()=>move(i,-1)}><ChevronUp size={17}/></button><button aria-label="아래로" disabled={i===draft.length-1} onClick={()=>move(i,1)}><ChevronDown size={17}/></button><button aria-label="삭제" onClick={()=>setDraft(prev=>prev.filter(x=>x.key!==item.key))}><Trash2 size={16}/></button></div></div>})}</div>}
-        <div className="yoga-seq-actions"><button onClick={()=>setView('library')}>+ 자세 더 추가</button><button onClick={()=>setView('presets')}>+ 프리셋 불러오기</button><button disabled={!draft.length} onClick={saveSequence}><Save size={16}/> 시퀀스 저장</button><button disabled={!draft.length} onClick={savePreset}><Save size={16}/> 내 프리셋 저장</button></div>
+        <div className="yoga-seq-actions"><button onClick={()=>setView('library')}>+ 자세</button><button onClick={()=>setView('presets')}>+ 프리셋</button><button disabled={!draft.length} onClick={saveSequence}><Save size={16}/> 시퀀스</button><button disabled={!draft.length} onClick={savePreset}><Save size={16}/> 프리셋</button></div>
         <div style={{border:'1px solid #e8e0ed',borderRadius:14,padding:14,margin:'14px 0',display:'grid',gap:9}}>
           <b>시퀀스 음성 재생</b>
-          <label style={{display:'flex',gap:10,alignItems:'center'}}>속도 <input type="range" min="30" max="120" step="5" value={bpm} onChange={e=>setBpm(Number(e.target.value))} style={{flex:1}}/><b>{bpm} BPM</b></label>
+          <label style={{display:'flex',gap:10,alignItems:'center'}}>속도 <input type="range" min="0" max="60" step="1" value={bpm} onChange={e=>setBpm(Number(e.target.value))} style={{flex:1}}/><b style={{minWidth:78,textAlign:"right"}}>{bpm===0?"일시정지":`${bpm} BPM`}</b></label>
           <label>카운트 언어 <select value={countLanguage} onChange={e=>setCountLanguage(e.target.value)}><option value="zh">중국어 (一 二 三...)</option><option value="ko">한국어 (하나 둘 셋...)</option></select></label>
           <button disabled={!draft.length} className="yoga-add" onClick={startPlayer}>▶ 혼합형 재생 시작</button>
           <small style={{color:'#8c8298'}}>자세 이름 → 왼쪽 카운트 → 오른쪽 카운트 · 자동 진행 / 일시정지 / 이전 / 다음</small>
@@ -296,7 +296,7 @@ export default function YogaLibrary(){
         <div className="yoga-detail-preview" style={{minHeight:220}}>{p&&photoFor(p)?<img src={photoFor(p)} alt={step.name}/>:<><ImageIcon size={30}/><span>사진 미등록</span></>}</div>
         <h2 style={{textAlign:'center',margin:'12px 0 6px'}}>{step.name}{step.side?' · '+step.side:''}</h2>
         <h1 style={{textAlign:'center',fontSize:40,margin:'10px 0'}}>{player.beat} / {step.beats}</h1>
-        <p className="muted" style={{textAlign:'center'}}>{introDone?'카운트 진행 중':'자세 이름 안내 중'} · {bpm} BPM</p>
+        <p className="muted" style={{textAlign:'center'}}>{bpm===0?'속도 0 · 카운트 정지':introDone?'카운트 진행 중':'자세 이름 안내 중'} · {bpm} BPM</p>
         <div style={{display:'flex',justifyContent:'center',gap:12,marginTop:12}}><button onClick={()=>jumpTo(-1)} disabled={player.index===0}>◀ 이전</button><button onClick={()=>setPlaying(v=>!v)}>{playing?'Ⅱ 일시정지':'▶ 계속'}</button><button onClick={()=>jumpTo(1)}>다음 ▶</button></div>
         <button style={{display:'block',margin:'16px auto 0'}} onClick={stopPlayer}>재생 종료</button>
       </>})()}
