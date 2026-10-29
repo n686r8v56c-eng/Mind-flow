@@ -12,8 +12,11 @@ export function ActivityProvider({client,source,children}){
  const generation=useRef(0),lock=useRef(false),active=useRef(null);active.current=user?.id||null;
  async function bridge(action,extra={}){
   const {data,error}=await client.auth.getSession();if(error||!data.session)throw Error('먼저 앱 계정에 로그인해 주세요.');
-  const r=await fetch(FOCUS+'/functions/v1/activity-bridge',{method:'POST',headers:{'Content-Type':'application/json',apikey:FOCUS_KEY,Authorization:'Bearer '+data.session.access_token},body:JSON.stringify({source,action,project_url:import.meta.env.VITE_SUPABASE_URL,public_key:import.meta.env.VITE_SUPABASE_ANON_KEY||import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,...extra}),signal:AbortSignal.timeout(15000)});
-  const body=await r.json().catch(()=>({}));if(!r.ok)throw Error(body.error||'Focus Flow 연결 기능 설치와 네트워크를 확인해 주세요.');return body;
+  const projectUrl=String(import.meta.env.VITE_SUPABASE_URL||'').trim().replace(/\/+$/,'');
+  const publicKey=String(import.meta.env.VITE_SUPABASE_ANON_KEY||import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY||'').trim();
+  if(!projectUrl||!publicKey)throw Error('Supabase 주소와 공개 키 환경변수를 확인해 주세요.');
+  const r=await fetch(FOCUS+'/functions/v1/activity-bridge',{method:'POST',headers:{'Content-Type':'application/json',apikey:FOCUS_KEY,Authorization:'Bearer '+data.session.access_token},body:JSON.stringify({source,action,project_url:projectUrl,public_key:publicKey,...extra}),signal:AbortSignal.timeout(15000)});
+  const body=await r.json().catch(()=>({}));if(!r.ok)throw Error((body.error||'Focus Flow 연결 기능 설치와 네트워크를 확인해 주세요.')+(r.status===400?' (Supabase 주소: '+projectUrl+')':''));return body;
  }
  useEffect(()=>{
   if(!client)return;let live=true;
