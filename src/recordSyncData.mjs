@@ -1,0 +1,3 @@
+export function mantraRows(data){return [...(data.sessions||[]).map(v=>({id:'session:'+v.id,kind:'session',payload:v,deleted:false})),...(data.mood||[]).map(v=>({id:'mood:'+v.date,kind:'mood',payload:v,deleted:false}))];}
+export function mantraDelta(before,after){const old=new Map(mantraRows(before).map(x=>[x.id,x]));const next=new Map(mantraRows(after).map(x=>[x.id,x]));return [...next.values()].filter(x=>JSON.stringify(x)!==JSON.stringify(old.get(x.id))).concat([...old.values()].filter(x=>!next.has(x.id)).map(x=>({...x,deleted:true})));}
+export function readMantraRows(rows){return {sessions:rows.filter(x=>x.kind==='session'&&!x.deleted).map(x=>x.payload),mood:rows.filter(x=>x.kind==='mood'&&!x.deleted).map(x=>x.payload)};}
