@@ -59,10 +59,19 @@ export function ActivityProvider({client,source,children}){
   if(r.error)throw r.error;if(!r.data)throw Error('다른 기기에서 일정이 변경됐어요. 잠시 후 다시 체크해 주세요.');
   if(active.current===owner)setPlans(old=>old.map(x=>x.id===row.id?r.data:x));
  })}
+ async function removePlan(row){
+  if(!window.confirm(`「${row.title}」 일정을 삭제할까요?\n저장된 시퀀스와 수행 기록은 삭제되지 않아요.`))return;
+  await mutate(async owner=>{
+   const r=await client.from('flow_activity_plans').delete().eq('id',row.id).eq('owner_id',owner).eq('revision',row.revision).select('id').maybeSingle();
+   if(r.error)throw r.error;
+   if(!r.data)throw Error('다른 기기에서 일정이 변경됐어요. 새로고침한 뒤 다시 삭제해 주세요.');
+   if(active.current===owner)setPlans(old=>old.filter(x=>x.id!==row.id));
+  });
+ }
  async function toggleShare(value){await mutate(async owner=>{const r=await client.from('flow_activity_settings').upsert({owner_id:owner,source,share:value},{onConflict:'owner_id,source'});if(r.error)throw r.error;if(active.current===owner)setShare(value)})}
  async function connect(){if(busy)return;setBusy(true);try{const r=await bridge('claim',{code:code.trim()});setLinked(r.linked===true);setCode('');setMessage('연결됐어요. Focus Flow에 표시를 켜 주세요.')}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  const open=(item)=>{setDate(localDay());setKind('new');setPending(item);setError('')};
- const context={plans,ready,busy,error,open,toggle,user,connection:{linked,share,code,setCode,connect,toggleShare,message,busy,ready,user,bridge,setLinked,setMessage}};
+ const context={plans,ready,busy,error,open,toggle,removePlan,user,connection:{linked,share,code,setCode,connect,toggleShare,message,busy,ready,user,bridge,setLinked,setMessage}};
  return <Context.Provider value={context}>{children}
  {pending&&<div role="dialog" aria-modal="true" aria-label="일정 추가" style={{position:'fixed',inset:0,zIndex:15000,background:'#34273d88',display:'grid',placeItems:'center',padding:16}}><form onSubmit={add} style={{...box,width:'min(100%,480px)',maxHeight:'85dvh',overflowY:'auto',boxSizing:'border-box'}}><h2>일정 추가</h2><p>{pending.title}</p><label>일정 날짜<input type="date" required value={date} onChange={e=>setDate(e.target.value)} style={field}/></label>{source==='study'&&<label>공부 종류<select value={kind} onChange={e=>setKind(e.target.value)} style={field}><option value="new">신규 암기</option><option value="review">복습</option></select></label>}{error&&<p role="alert">{error}</p>}{!user&&<p>계정 메뉴에서 먼저 로그인해 주세요.</p>}<div style={{display:'flex',gap:8,marginTop:16}}><button type="submit" style={button} disabled={busy||!ready}>{busy?'저장 중…':'이 일정에 추가하기'}</button><button type="button" style={button} disabled={busy} onClick={()=>setPending(null)}>닫기</button></div></form></div>}
  </Context.Provider>;
@@ -76,7 +85,7 @@ export function ScheduleButton({item}){const s=useActivitySchedule();return <but
 export function ActivityList({date=localDay(),title='오늘 할 공부',onOpen}){
  const s=useActivitySchedule(),rows=s.plans.filter(x=>x.date===date);
  const label={new:'신규 암기',review:'복습',breath:'호흡',mantra:'만트라'};
- return <section style={box}><h2>{title}</h2>{!s.user?<p>계정 메뉴에서 로그인하면 날짜별 일정을 저장할 수 있어요.</p>:s.error?<p role="alert">{s.error}</p>:!s.ready?<p>일정 불러오는 중…</p>:rows.length===0?<p style={{color:'#9a8ca7'}}>등록된 일정이 없어요.</p>:<ul style={{listStyle:'none',padding:0,margin:0}}>{rows.map(row=><li key={row.id} style={{display:'flex',alignItems:'center',gap:8,padding:'12px 0',borderBottom:'1px solid #eee8f3',color:row.done?'#9d95a5':'#51425f'}}><button type="button" role="checkbox" aria-checked={row.done} aria-label={`${row.title} 완료`} style={{...button,minWidth:44,minHeight:44,padding:6}} disabled={s.busy} onClick={()=>s.toggle(row)}>{row.done?'✓':'○'}</button><button type="button" style={{flex:1,textAlign:'left',padding:8,border:0,background:'transparent',font:'inherit',color:'inherit'}} onClick={()=>onOpen(row)}><b style={{textDecoration:row.done?'line-through':'none',overflowWrap:'anywhere'}}>{row.title}</b><small style={{display:'block',marginTop:4}}>{label[row.kind]||row.kind} · 열기 →</small></button></li>)}</ul>}</section>;
+ return <section style={box}><h2>{title}</h2>{!s.user?<p>계정 메뉴에서 로그인하면 날짜별 일정을 저장할 수 있어요.</p>:s.error?<p role="alert">{s.error}</p>:!s.ready?<p>일정 불러오는 중…</p>:rows.length===0?<p style={{color:'#9a8ca7'}}>등록된 일정이 없어요.</p>:<ul style={{listStyle:'none',padding:0,margin:0}}>{rows.map(row=><li key={row.id} style={{display:'flex',alignItems:'center',gap:8,padding:'12px 0',borderBottom:'1px solid #eee8f3',color:row.done?'#9d95a5':'#51425f'}}><button type="button" role="checkbox" aria-checked={row.done} aria-label={`${row.title} 완료`} style={{...button,minWidth:44,minHeight:44,padding:6}} disabled={s.busy} onClick={()=>s.toggle(row)}>{row.done?'✓':'○'}</button><button type="button" style={{flex:1,textAlign:'left',padding:8,border:0,background:'transparent',font:'inherit',color:'inherit'}} onClick={()=>onOpen(row)}><b style={{textDecoration:row.done?'line-through':'none',overflowWrap:'anywhere'}}>{row.title}</b><small style={{display:'block',marginTop:4}}>{label[row.kind]||row.kind} · 열기 →</small></button><button type="button" title="이 일정 삭제" aria-label={`${row.title} 일정 삭제`} disabled={s.busy} onClick={()=>s.removePlan(row)} style={{border:0,background:'transparent',color:'#a58bae',padding:10,fontSize:23,lineHeight:1,minWidth:40,minHeight:44,flexShrink:0,cursor:'pointer'}}>×</button></li>)}</ul>}</section>;
 }
 export function ActivityCalendar({onOpen,title='공부 일정'}){
  const s=useActivitySchedule(),[date,setDate]=useState(localDay()),[month,setMonth]=useState(()=>localDay().slice(0,7));
