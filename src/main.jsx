@@ -282,3 +282,5 @@ return <div className="shell"><header><div className="brand"><span className="ma
 </main><nav className="bottom-nav" style={{display:"grid",gridTemplateColumns:`repeat(${tabs.length},minmax(0,1fr))`,gap:0,paddingLeft:2,paddingRight:2}}>{tabs.map(([name,Icon])=><button key={name} onClick={()=>{setTab(name);window.scrollTo({top:0,behavior:'smooth'})}} className={tab===name?'selected':''} style={{minWidth:0,width:"100%",paddingLeft:0,paddingRight:0,gap:4}}><Icon size={22} strokeWidth={tab===name?2.5:1.8}/><span style={{fontSize:11,whiteSpace:"nowrap"}}>{name}</span></button>)}</nav></div>}
 createRoot(document.getElementById('root')).render(<AuthGate><ActivityProvider client={yogaSupabase} source="mind"><App/></ActivityProvider></AuthGate>);
 
+
+import './mobile-readability.css';

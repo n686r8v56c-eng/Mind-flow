@@ -490,3 +490,367 @@
 
 /* Mantra prayer cards */
 .mantra-prayers{min-width:0}.mantra-prayer-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0;flex-wrap:wrap}.mantra-prayer-heading h2{margin:0;font-size:16px}.mantra-prayer-heading span{display:flex;gap:5px;flex-wrap:wrap}.mantra-prayer-heading button,.mantra-prayer-upload,.mantra-prayer-actions button{border:1px solid #dfd0eb;border-radius:9px;background:#f3ebf8;color:#76558c;padding:6px 9px;font:inherit;font-size:12px;cursor:pointer}.mantra-prayer-card{border:1px solid #e2d7ea;border-radius:12px;margin:8px 0;overflow:hidden}.mantra-prayer-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 12px;text-align:left;background:#f5eef9;color:#48365a;border:0;cursor:pointer}.mantra-prayer-toggle span:first-child{min-width:0;display:grid;gap:3px}.mantra-prayer-toggle small{font-size:11px;color:#8d7b98}.mantra-prayer-content{padding:10px;min-width:0}.mantra-prayer-text{margin:8px 0}.mantra-prayer-text b{font-size:12px}.mantra-prayer-text p{white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0;font-size:13px;line-height:1.6}.mantra-prayer-media{display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid #eee;min-width:0}.mantra-prayer-media img{width:70px;aspect-ratio:16/9;object-fit:cover;border-radius:6px}.mantra-prayer-media span{min-width:0;flex:1;overflow-wrap:anywhere;font-size:12px}.mantra-prayer-media a,.mantra-prayer-media button{white-space:nowrap;padding:5px;border:0;background:transparent;color:#755b8c;font-size:12px}.mantra-prayer-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:10px}.mantra-prayer-dialog{background:white;border-radius:14px;padding:16px;width:min(92vw,430px);max-height:86dvh;overflow:auto;box-sizing:border-box}.mantra-prayer-dialog label{display:grid;gap:4px;margin:9px 0;font-size:13px}.mantra-prayer-dialog input,.mantra-prayer-dialog textarea{width:100%;box-sizing:border-box;border:1px solid #ded0ea;border-radius:8px;padding:9px;font:inherit;font-size:16px}.mantra-prayer-upload{display:inline-block}
+
+
+/* Phone text minimums; existing larger type remains unchanged. */
+@media (max-width: 749px) {
+    .brand {
+        font-size: 16px !important
+    }
+    .mark {
+        font-size: 27px !important
+    }
+    .bottom-nav button {
+        font-size: 14px !important
+    }
+    h1 {
+        font-size: 29px !important
+    }
+    h2 {
+        font-size: 19px !important
+    }
+    h3 {
+        font-size: 15px !important
+    }
+    .eyebrow {
+        font-size: 13px !important
+    }
+    .hero h1 {
+        font-size: 32px !important
+    }
+    .hero p {
+        font-size: 16px !important
+    }
+    .page-heading p {
+        font-size: 16px !important
+    }
+    .hero-orb {
+        font-size: 72px !important
+    }
+    .hero-button {
+        font-size: 16px !important
+    }
+    .stats span {
+        font-size: 15px !important
+    }
+    .stats strong {
+        font-size: 26px !important
+    }
+    .stats small {
+        font-size: 15px !important
+    }
+    .quickgrid b {
+        font-size: 15px !important
+    }
+    .quickgrid span {
+        font-size: 14px !important
+    }
+    .panel-title p {
+        font-size: 14px !important
+    }
+    .upload-btn {
+        font-size: 15px !important
+    }
+    .soft-btn {
+        font-size: 15px !important
+    }
+    .empty b {
+        font-size: 16px !important
+    }
+    .empty p {
+        font-size: 15px !important
+    }
+    .sound-text b {
+        font-size: 16px !important
+    }
+    .sound-text span {
+        font-size: 13px !important
+    }
+    .percentage {
+        font-size: 15px !important
+    }
+    .micro {
+        font-size: 14px !important
+    }
+    .timer-readout {
+        font-size: 47px !important
+    }
+    .hint {
+        font-size: 15px !important
+    }
+    .range-label {
+        font-size: 14px !important
+    }
+    .range-label b {
+        font-size: 16px !important
+    }
+    .toggleline {
+        font-size: 16px !important
+    }
+    .primary {
+        font-size: 16px !important
+    }
+    .secondary {
+        font-size: 16px !important
+    }
+    .preset b {
+        font-size: 16px !important
+    }
+    .preset small {
+        font-size: 15px !important
+    }
+    .muted {
+        font-size: 15px !important
+    }
+    .warning {
+        font-size: 14px !important
+    }
+    .breath-orb span {
+        font-size: 16px !important
+    }
+    .breath-orb strong {
+        font-size: 28px !important
+    }
+    .breath-time {
+        font-size: 23px !important
+    }
+    .chips button {
+        font-size: 15px !important
+    }
+    .search input {
+        font-size: 16px !important
+    }
+    .video-name {
+        font-size: 16px !important
+    }
+    .video-meta small {
+        font-size: 13px !important
+    }
+    .video-actions button {
+        font-size: 14px !important
+    }
+    .modal-header b {
+        font-size: 15px !important
+    }
+    .month-bar b {
+        font-size: 16px !important
+    }
+    .weekday {
+        font-size: 14px !important
+    }
+    .day {
+        font-size: 15px !important
+    }
+    .record b {
+        font-size: 16px !important
+    }
+    .record small {
+        font-size: 14px !important
+    }
+    .journal b {
+        font-size: 16px !important
+    }
+    .journal small {
+        font-size: 13px !important
+    }
+    .chartcol span {
+        font-size: 13px !important
+    }
+    .chartcol small {
+        font-size: 13px !important
+    }
+    .notice {
+        font-size: 15px !important
+    }
+    @media (max-width:500px) {
+        .hero-orb {
+            font-size: 55px !important
+        }
+    }
+    @media (max-width:500px) {
+        .bottom-nav button {
+            font-size: 13px !important
+        }
+    }
+    @media (max-width:500px) {
+        .timer-readout {
+            font-size: 40px !important
+        }
+    }
+    .sound-category-emoji {
+        font-size: 24px !important
+    }
+    .sound-category-label {
+        font-size: 16px !important
+    }
+    .sound-category-count {
+        font-size: 13px !important
+    }
+    .sound-category-heading h3 {
+        font-size: 17px !important
+    }
+    .sound-category-heading span {
+        font-size: 15px !important
+    }
+    .sound-upload-row>label:first-child {
+        font-size: 15px !important
+    }
+    .sound-upload-row select {
+        font-size: 16px !important
+    }
+    @media (max-width:380px) {
+        .sound-category-label {
+            font-size: 15px !important
+        }
+    }
+    .nadi-current strong {
+        font-size: clamp(32px, 8vw, 52px) !important
+    }
+    .nadi-beats span {
+        font-size: 17px !important
+    }
+    .home-calm-stats h2 {
+        font-size: 18px !important
+    }
+    .home-calm-charts h2 {
+        font-size: 18px !important
+    }
+    .home-calm-summary span {
+        font-size: 16px !important
+    }
+    .home-calm-summary strong {
+        font-size: 24px !important
+    }
+    .home-calm-summary small {
+        font-size: 15px !important
+    }
+    .home-calm-heading span {
+        font-size: 16px !important
+    }
+    .home-calm-day > span {
+        font-size: 14px !important
+    }
+    .home-calm-note {
+        font-size: 15px !important
+    }
+    .yoga-switch button {
+        font-size: 16px !important
+    }
+    .yoga-search input {
+        font-size: 16px !important
+    }
+    .yoga-filters label {
+        font-size: 15px !important
+    }
+    .yoga-filters select {
+        font-size: 16px !important
+    }
+    .yoga-count {
+        font-size: 15px !important
+    }
+    .yoga-pose-preview small {
+        font-size: 14px !important
+    }
+    .yoga-pose-name {
+        font-size: 16px !important
+    }
+    .yoga-pose-info > span {
+        font-size: 14px !important
+    }
+    .yoga-add {
+        font-size: 15px !important
+    }
+    .yoga-seq-title {
+        font-size: 16px !important
+    }
+    .yoga-draft-title small {
+        font-size: 14px !important
+    }
+    .yoga-saved-row small {
+        font-size: 14px !important
+    }
+    .yoga-subtitle {
+        font-size: 16px !important
+    }
+    .yoga-detail-add {
+        font-size: 15px !important
+    }
+    .mind-kpi-row strong {
+        font-size: 20px !important
+    }
+    .mind-kpi-row small {
+        font-size: 15px !important
+    }
+    .mind-kpi-foot {
+        font-size: 15px !important
+    }
+    .mind-kpi-foot input {
+        font-size: 16px !important
+    }
+    .mind-manual-fields input {
+        font-size: 16px !important
+    }
+    .mind-manual-fields select {
+        font-size: 16px !important
+    }
+    .mind-manual-note {
+        font-size: 16px !important
+    }
+    .mind-manual-fields button {
+        font-size: 16px !important
+    }
+    .mind-audio-item button {
+        font-size: 16px !important
+    }
+    .mind-upload {
+        font-size: 16px !important
+    }
+    .mind-summary-row span {
+        font-size: 15px !important
+    }
+    .mind-summary-row b {
+        font-size: 16px !important
+    }
+    .mind-audio-item small {
+        font-size: 14px !important
+    }
+    .mantra-prayer-heading h2 {
+        font-size: 16px !important
+    }
+    .mantra-prayer-heading button {
+        font-size: 15px !important
+    }
+    .mantra-prayer-upload {
+        font-size: 15px !important
+    }
+    .mantra-prayer-actions button {
+        font-size: 15px !important
+    }
+    .mantra-prayer-toggle small {
+        font-size: 14px !important
+    }
+    .mantra-prayer-text b {
+        font-size: 15px !important
+    }
+    .mantra-prayer-text p {
+        font-size: 16px !important
+    }
+    .mantra-prayer-media span {
+        font-size: 15px !important
+    }
+    .mantra-prayer-media a {
+        font-size: 15px !important
+    }
+    .mantra-prayer-media button {
+        font-size: 15px !important
+    }
+    .mantra-prayer-dialog label {
+        font-size: 16px !important
+    }
+    .mantra-prayer-dialog input {
+        font-size: 16px !important
+    }
+    .mantra-prayer-dialog textarea {
+        font-size: 16px !important
+    }
+}
